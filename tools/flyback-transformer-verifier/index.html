@@ -1,0 +1,2288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flyback Transformer Verifier</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e1117;
+    --surface: #161b25;
+    --surface2: #1d2433;
+    --border: #2a3347;
+    --border2: #3a4a64;
+    --text: #e2e8f0;
+    --text2: #8fa3c0;
+    --text3: #556070;
+    --accent: #3b82f6;
+    --accent2: #1d4ed8;
+    --pass: #22c55e;
+    --warn: #f59e0b;
+    --fail: #ef4444;
+    --info: #38bdf8;
+    --pass-bg: rgba(34,197,94,0.1);
+    --warn-bg: rgba(245,158,11,0.1);
+    --fail-bg: rgba(239,68,68,0.1);
+    --info-bg: rgba(56,189,248,0.08);
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ── Layout ── */
+  .app { display: flex; height: 100vh; overflow: hidden; }
+
+  .sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow-y: auto;
+  }
+
+  .logo {
+    padding: 20px 18px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .logo-sub {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+
+  .nav { padding: 12px 8px; flex: 1; }
+  .nav-section { font-size: 10px; font-weight: 600; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; padding: 10px 10px 4px; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text2);
+    font-size: 13px;
+    transition: all 0.15s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(59,130,246,0.12); color: var(--accent); font-weight: 500; }
+  .nav-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; transition: background 0.15s; }
+  .nav-item.active .dot { background: var(--accent); }
+  .nav-item.pass-item .dot { background: var(--pass); }
+  .nav-item.warn-item .dot { background: var(--warn); }
+  .nav-item.fail-item .dot { background: var(--fail); }
+
+  .sidebar-footer {
+    padding: 12px 18px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  /* ── Main ── */
+  .main { flex: 1; overflow-y: auto; }
+  .page { display: none; padding: 28px 32px; max-width: 960px; }
+  .page.active { display: block; }
+
+  .page-header { margin-bottom: 24px; }
+  .page-title { font-family: var(--mono); font-size: 18px; font-weight: 600; color: var(--text); }
+  .page-desc { font-size: 13px; color: var(--text2); margin-top: 4px; }
+
+  /* ── Sections ── */
+  .section { margin-bottom: 24px; }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--text3);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Grid ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; }
+
+  /* ── Field ── */
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; color: var(--text2); font-weight: 500; }
+  .field input, .field select, .field textarea {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 7px 10px;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .field .hint { font-size: 10px; color: var(--text3); font-family: var(--mono); }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 20px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-outline { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
+  .btn-outline:hover { background: var(--surface2); color: var(--text); }
+  .btn-danger { background: rgba(239,68,68,0.12); color: var(--fail); border: 1px solid rgba(239,68,68,0.3); }
+  .btn-danger:hover { background: rgba(239,68,68,0.2); }
+  .btn-row { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+
+  /* ── Metric cards ── */
+  .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .metric-label { font-size: 10px; color: var(--text3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
+  .metric-val { font-family: var(--mono); font-size: 20px; font-weight: 600; color: var(--text); margin-top: 4px; }
+  .metric-val.pass { color: var(--pass); }
+  .metric-val.warn { color: var(--warn); }
+  .metric-val.fail { color: var(--fail); }
+  .metric-unit { font-size: 11px; color: var(--text3); }
+
+  /* ── Results table ── */
+  .results-table { width: 100%; border-collapse: collapse; }
+  .results-table th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .results-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 13px; }
+  .results-table tr:last-child td { border-bottom: none; }
+  .results-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-pass { background: var(--pass-bg); color: var(--pass); }
+  .badge-warn { background: var(--warn-bg); color: var(--warn); }
+  .badge-fail { background: var(--fail-bg); color: var(--fail); }
+  .badge-info { background: var(--info-bg); color: var(--info); }
+  .badge-na   { background: rgba(255,255,255,0.04); color: var(--text3); }
+
+  .check-name { font-weight: 500; color: var(--text); }
+  .check-detail { font-family: var(--mono); font-size: 11px; color: var(--text2); margin-top: 3px; }
+  .check-advice { font-size: 12px; color: var(--text3); margin-top: 4px; font-style: italic; }
+
+  /* ── Calc output box ── */
+  .calc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .calc-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .calc-label { font-size: 10px; color: var(--text3); font-family: var(--mono); }
+  .calc-val { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--info); margin-top: 2px; }
+
+  /* ── Sample inspection ── */
+  .inspection-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .inspection-item .item-left { display: flex; flex-direction: column; gap: 6px; min-width: 180px; }
+  .inspection-item .item-name { font-weight: 500; font-size: 13px; color: var(--text); }
+  .inspection-item .item-method { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .inspection-item .item-right { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .inspection-item .item-input-row { display: flex; gap: 8px; align-items: center; }
+  .inspection-item .item-spec { font-size: 11px; color: var(--text2); font-family: var(--mono); }
+  .pass-light { width: 10px; height: 10px; border-radius: 50%; background: var(--text3); flex-shrink: 0; margin-top: 4px; transition: background 0.2s; }
+  .pass-light.pass { background: var(--pass); box-shadow: 0 0 6px var(--pass); }
+  .pass-light.warn { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .pass-light.fail { background: var(--fail); box-shadow: 0 0 6px var(--fail); }
+
+  /* ── Notes area ── */
+  .notes-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .notes-box textarea {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    resize: vertical;
+    min-height: 80px;
+  }
+  .notes-box textarea:focus { outline: none; }
+
+  /* ── Summary banner ── */
+  .summary-banner {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 20px;
+  }
+  .sum-pill {
+    flex: 1;
+    text-align: center;
+    padding: 10px 0;
+    border-radius: 6px;
+  }
+  .sum-pill.pass-bg { background: var(--pass-bg); }
+  .sum-pill.warn-bg { background: var(--warn-bg); }
+  .sum-pill.fail-bg { background: var(--fail-bg); }
+  .sum-num { font-family: var(--mono); font-size: 28px; font-weight: 600; }
+  .sum-num.pass { color: var(--pass); }
+  .sum-num.warn { color: var(--warn); }
+  .sum-num.fail { color: var(--fail); }
+  .sum-lbl { font-size: 11px; color: var(--text2); }
+
+  /* ── Print / report ── */
+  .report-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+
+  /* ── Divider ── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  /* ── Alert ── */
+  .alert {
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 12px;
+    border-left: 3px solid;
+  }
+  .alert-info { background: var(--info-bg); border-color: var(--info); color: var(--info); }
+  .alert-warn { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  /* ── Measurement guide styles ── */
+  .guide-step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .guide-step:last-child { border-bottom: none; }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(59,130,246,0.15);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-body { flex: 1; }
+  .step-title { font-weight: 500; color: var(--text); font-size: 13px; }
+  .step-detail { font-size: 12px; color: var(--text2); margin-top: 3px; line-height: 1.6; }
+  .step-warn { font-size: 12px; color: var(--warn); margin-top: 4px; }
+  .step-tip  { font-size: 12px; color: var(--info); margin-top: 4px; }
+  .meas-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .meas-card-header {
+    background: var(--surface2);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .meas-card-num {
+    width: 32px; height: 32px; border-radius: 6px;
+    background: rgba(59,130,246,0.2);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .meas-card-title { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--text); }
+  .meas-card-sub { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .meas-card-body { padding: 0 16px 4px; }
+  .meas-layout { display: grid; grid-template-columns: 240px 1fr; gap: 16px; padding: 14px 0; align-items: start; }
+  .meas-diagram { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .meas-diagram-label { font-size: 10px; color: var(--text3); font-family: var(--mono); text-align: center; }
+  .meas-steps { }
+  .conn-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  .conn-table th { font-family: var(--mono); font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; padding: 4px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+  .conn-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); color: var(--text2); font-family: var(--mono); font-size: 11px; }
+  .conn-table tr:last-child td { border-bottom: none; }
+  .conn-hi { color: var(--fail); font-weight: 600; }
+  .conn-lo { color: var(--info); font-weight: 600; }
+  .conn-nc { color: var(--text3); }
+  .expected-box {
+    background: rgba(34,197,94,0.06);
+    border: 1px solid rgba(34,197,94,0.2);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--pass);
+    font-family: var(--mono);
+  }
+  .warn-box {
+    background: rgba(245,158,11,0.07);
+    border: 1px solid rgba(245,158,11,0.25);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--warn);
+  }
+  .dot-legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .dot-legend-item { display: flex; align-items: center; gap: 6px; }
+
+  /* ── Print ── */
+  @media print {
+    .sidebar { display: none; }
+    .main { overflow: visible; }
+    .page { display: block !important; page-break-before: always; padding: 20px; }
+    .page:first-of-type { page-break-before: avoid; }
+    .btn, .btn-row { display: none; }
+    body { background: #fff; color: #000; }
+    .surface, .calc-card, .metric-card, .inspection-item, .notes-box { background: #f8f8f8; border-color: #ccc; }
+    .text, .calc-val { color: #000; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ── SIDEBAR ── -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-title">TX Verifier</div>
+    <div class="logo-sub">Flyback / SMPS</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">Design</div>
+    <button class="nav-item active" onclick="showPage('p-operating')"><span class="dot"></span>Operating conditions</button>
+    <button class="nav-item" onclick="showPage('p-core')"><span class="dot"></span>Core parameters</button>
+    <button class="nav-item" onclick="showPage('p-winding')"><span class="dot"></span>Windings & inductance</button>
+    <button class="nav-item" onclick="showPage('p-datasheet')"><span class="dot"></span>Datasheet reference</button>
+
+    <div class="nav-section" style="margin-top:8px">Verification</div>
+    <button class="nav-item" onclick="showPage('p-guide')"><span class="dot"></span>Measurement guide</button>
+    <button class="nav-item" onclick="showPage('p-results')"><span class="dot"></span>Design verification</button>
+    <button class="nav-item" onclick="showPage('p-sample')"><span class="dot"></span>Sample inspection</button>
+    <button class="nav-item" onclick="showPage('p-report')"><span class="dot"></span>Report / export</button>
+  </nav>
+  <div class="sidebar-footer">v1.1 · Offline tool<br>No data leaves this file</div>
+</aside>
+
+<!-- ── MAIN CONTENT ── -->
+<main class="main">
+
+<!-- PAGE: Operating Conditions -->
+<div class="page active" id="p-operating">
+  <div class="page-header">
+    <div class="page-title">Operating conditions</div>
+    <div class="page-desc">Input supply range, switching frequency, and output targets</div>
+  </div>
+  <div class="section">
+    <div class="section-label">Input supply</div>
+    <div class="grid-3">
+      <div class="field"><label>Vin min (Vac)</label><input type="number" id="vin_min" value="85"><div class="hint">e.g. 85 Vac (universal low)</div></div>
+      <div class="field"><label>Vin max (Vac)</label><input type="number" id="vin_max" value="265"><div class="hint">e.g. 265 Vac (universal high)</div></div>
+      <div class="field"><label>Vin nominal (Vac)</label><input type="number" id="vin_nom" value="230"></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-label">Switching</div>
+    <div class="grid-3">
+      <div class="field"><label>Switching freq fsw (kHz)</label><input type="number" id="fsw" value="65"></div>
+      <div class="field"><label>Max duty cycle Dmax</label><input type="number" id="dmax" step="0.01" value="0.45"><div class="hint">Typically 0.40–0.48</div></div>
+      <div class="field"><label>Target efficiency η (%)</label><input type="number" id="eta" value="88"></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-label">Output</div>
+    <div class="grid-4">
+      <div class="field"><label>Vout (V)</label><input type="number" id="vout" value="12"></div>
+      <div class="field">
+        <label>Iout max
+          <span style="margin-left:6px;display:inline-flex;border:1px solid var(--border2);border-radius:4px;overflow:hidden;vertical-align:middle;">
+            <button id="iout-unit-a"  onclick="setIoutUnit('A')"  style="padding:1px 7px;font-size:10px;font-family:var(--mono);border:none;cursor:pointer;background:var(--accent);color:#fff;font-weight:600;">A</button>
+            <button id="iout-unit-ma" onclick="setIoutUnit('mA')" style="padding:1px 7px;font-size:10px;font-family:var(--mono);border:none;cursor:pointer;background:transparent;color:var(--text3);">mA</button>
+          </span>
+        </label>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="number" id="iout_raw" value="5" step="0.001" style="flex:1" oninput="updateIoutDisplay()">
+          <span id="iout-unit-label" style="font-family:var(--mono);font-size:12px;color:var(--text2);min-width:22px;">A</span>
+        </div>
+        <div class="hint" id="iout-hint">= 5.000 A = 5000 mA</div>
+        <input type="hidden" id="iout" value="5">
+      </div>
+      <div class="field"><label>Vf secondary diode (V)</label><input type="number" id="vf" step="0.1" value="0.7"></div>
+      <div class="field"><label>Vout ripple limit (mV)</label><input type="number" id="vripple" value="100"></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-label">Mode & topology</div>
+    <div class="grid-3">
+      <div class="field"><label>Conduction mode</label>
+        <select id="mode">
+          <option value="DCM">DCM — Discontinuous</option>
+          <option value="CCM" selected>CCM — Continuous</option>
+          <option value="BCM">BCM — Boundary</option>
+        </select>
+      </div>
+      <div class="field"><label>Rectifier type</label>
+        <select id="rect_type">
+          <option value="diode" selected>Diode rectifier</option>
+          <option value="sync">Synchronous rectifier</option>
+        </select>
+      </div>
+      <div class="field"><label>Snubber type</label>
+        <select id="snubber">
+          <option value="RCD" selected>RCD clamp</option>
+          <option value="LCD">LCD clamp</option>
+          <option value="TVS">TVS / Zener</option>
+          <option value="Active">Active clamp</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="showPage('p-core')">Next: Core parameters →</button>
+  </div>
+</div>
+
+<!-- PAGE: Core Parameters -->
+<div class="page" id="p-core">
+  <div class="page-header">
+    <div class="page-title">Core parameters</div>
+    <div class="page-desc">Geometry and material — supports standard grades and custom Chinese vendor specs</div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Core identification</div>
+    <div class="grid-4">
+      <div class="field"><label>Core shape</label>
+        <select id="core_type">
+          <option value="EE">EE</option><option value="ETD" selected>ETD</option><option value="EFD">EFD</option>
+          <option value="PQ">PQ</option><option value="RM">RM</option><option value="Pot">Pot</option>
+          <option value="UU">UU</option><option value="EI">EI</option><option value="EC">EC</option><option value="Custom">Custom</option>
+        </select>
+      </div>
+      <div class="field"><label>Core size / part no.</label><input type="text" id="core_size" value="ETD34"><div class="hint">e.g. ETD34, EE3528, TDK-PC95ETD34</div></div>
+      <div class="field"><label>Vendor / manufacturer</label><input type="text" id="core_vendor" placeholder="e.g. TDK, Ferroxcube, Acme"><div class="hint">Chinese: DMEGC, ACME, Hengdian, KMnetics…</div></div>
+      <div class="field"><label>Vendor material code</label><input type="text" id="core_mat" value="N87" placeholder="e.g. N87, PC95, DMR44, R10K">
+        <div class="hint">Western: N87/N97, PC95, 3C95 · Chinese: DMR44, R10000, TP4A…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Material grade — preset or manual entry</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <button class="btn btn-outline" style="font-size:11px;padding:5px 10px" onclick="loadPreset('N87')">TDK N87</button>
+      <button class="btn btn-outline" style="font-size:11px;padding:5px 10px" onclick="loadPreset('N97')">TDK N97</button>
+      <button class="btn btn-outline" style="font-size:11px;padding:5px 10px" onclick="loadPreset('PC95')">TDK PC95</button>
+      <button class="btn btn-outline" style="font-size:11px;padding:5px 10px" onclick="loadPreset('3C95')">Ferroxcube 3C95</button>
+      <button class="btn btn-outline" style="font-size:11px;padding:5px 10px" onclick="loadPreset('DMR44')">DMEGC DMR44</button>
+      <button class="btn btn-outline" style="font-size:11px;padding:5px 10px" onclick="loadPreset('R10K')">Hengdian R10000</button>
+      <button class="btn btn-outline" style="font-size:11px;padding:5px 10px" onclick="loadPreset('TP4A')">KMnetics TP4A</button>
+      <button class="btn btn-outline" style="font-size:11px;padding:5px 10px;color:var(--warn)" onclick="clearMaterial()">Clear / manual</button>
+    </div>
+    <div class="grid-4">
+      <div class="field"><label>µi — initial permeability</label><input type="number" id="mu_i" value="2200"><div class="hint">Ungapped core, 25°C</div></div>
+      <div class="field"><label>Bsat (mT) @ 100°C</label><input type="number" id="bsat" value="400"><div class="hint">Saturation flux density</div></div>
+      <div class="field"><label>Bmax design limit (mT)</label><input type="number" id="bmax_lim" value="300"><div class="hint">Working limit — typ 70–80% of Bsat</div></div>
+      <div class="field"><label>Max temp rating (°C)</label><input type="number" id="core_temp" value="100"></div>
+    </div>
+    <div class="grid-4" style="margin-top:10px">
+      <div class="field"><label>Loss coeff. k (Steinmetz)</label><input type="number" id="st_k" step="0.0001" value="0.0079" placeholder="Steinmetz k"><div class="hint">Pv = k·f^α·B^β in mW/cm³</div></div>
+      <div class="field"><label>Loss exponent α (freq)</label><input type="number" id="st_alpha" step="0.01" value="1.51"><div class="hint">Typically 1.4–1.7</div></div>
+      <div class="field"><label>Loss exponent β (flux)</label><input type="number" id="st_beta" step="0.01" value="2.53"><div class="hint">Typically 2.0–2.8</div></div>
+      <div class="field"><label>Resistivity ρ (Ω·cm)</label><input type="number" id="core_rho" value="2" placeholder="e.g. 1–10"><div class="hint">MnZn: 0.1–10 · NiZn: 10⁵+</div></div>
+    </div>
+    <div id="material-note" style="margin-top:8px;font-size:11px;color:var(--text3);font-family:var(--mono);font-style:italic;"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Effective core geometry (from core datasheet / sample measurement)</div>
+    <div class="grid-3">
+      <div class="field"><label>Ae — effective area (mm²)</label><input type="number" id="ae" value="97.1"><div class="hint">Cross-sectional area, from datasheet</div></div>
+      <div class="field"><label>Le — effective path length (mm)</label><input type="number" id="le" value="78.6"></div>
+      <div class="field"><label>Ve — effective volume (mm³)</label><input type="number" id="ve" value="7640"><div class="hint">If not given: Ve ≈ Ae × Le</div></div>
+    </div>
+    <div class="grid-4" style="margin-top:10px">
+      <div class="field"><label>Aw — window area (mm²)</label><input type="number" id="aw" value="178"><div class="hint">Bobbin winding window</div></div>
+      <div class="field"><label>Gap length lg (mm)</label><input type="number" id="lg" step="0.01" value="0.35"><div class="hint">Physical air gap per leg</div></div>
+      <div class="field"><label>A — overall height (mm)</label><input type="number" id="core_a" step="0.1" placeholder="overall height"></div>
+      <div class="field"><label>B — overall width (mm)</label><input type="number" id="core_b" step="0.1" placeholder="overall width"></div>
+    </div>
+    <div class="grid-4" style="margin-top:10px">
+      <div class="field"><label>C — overall depth (mm)</label><input type="number" id="core_c" step="0.1" placeholder="overall depth"></div>
+      <div class="field"><label>D — center leg width (mm)</label><input type="number" id="core_d" step="0.1" placeholder="center leg"></div>
+      <div class="field"><label>E — window height (mm)</label><input type="number" id="core_e" step="0.1" placeholder="window height"></div>
+      <div class="field"><label>F — window width (mm)</label><input type="number" id="core_f" step="0.1" placeholder="window width"></div>
+    </div>
+    <div style="margin-top:10px">
+      <div class="field"><label>Vendor geometry notes / deviations</label>
+        <textarea id="core_geo_notes" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:12px;padding:7px 10px;resize:vertical;" placeholder="e.g. Chinese vendor uses Ae=95.5mm² vs TDK 97.1mm² for same footprint. Note any deviations here."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-outline" onclick="showPage('p-operating')">← Back</button>
+    <button class="btn btn-primary" onclick="showPage('p-winding')">Next: Windings →</button>
+  </div>
+</div>
+
+<!-- PAGE: Windings -->
+<div class="page" id="p-winding">
+  <div class="page-header">
+    <div class="page-title">Windings & inductance</div>
+    <div class="page-desc">Primary, secondary, auxiliary — turns, wire, strands, current density</div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Turns count</div>
+    <div class="grid-4">
+      <div class="field"><label>Np — primary turns</label><input type="number" id="np" value="48"></div>
+      <div class="field"><label>Ns — secondary turns</label><input type="number" id="ns" value="6"></div>
+      <div class="field"><label>Naux — auxiliary turns</label><input type="number" id="naux" value="8"></div>
+      <div class="field"><label>N3 — 2nd secondary (opt.)</label><input type="number" id="n3" value="0"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Inductance / resistance</div>
+    <div class="grid-3">
+      <div class="field"><label>Lp — primary inductance (µH)</label><input type="number" id="lp" value="620"></div>
+      <div class="field"><label>Llk — leakage inductance (µH)</label><input type="number" id="llk" value="12"><div class="hint">Measured with sec shorted</div></div>
+      <div class="field"><label>Al — inductance factor (nH/N²)</label><input type="number" id="al" value="270"><div class="hint">From core datasheet w/ gap</div></div>
+    </div>
+    <div class="grid-3" style="margin-top:10px">
+      <div class="field"><label>Rdc primary (mΩ)</label><input type="number" id="rdc_p" value="350"></div>
+      <div class="field"><label>Rdc secondary (mΩ)</label><input type="number" id="rdc_s" value="18"></div>
+      <div class="field"><label>LCR measurement freq (kHz)</label><input type="number" id="meas_freq" value="100"><div class="hint">Test freq used for Lp, Llk</div></div>
+    </div>
+  </div>
+
+  <!-- Primary winding -->
+  <div class="section">
+    <div class="section-label">Primary winding — wire & conductor</div>
+    <div class="grid-4">
+      <div class="field">
+        <label>Wire diameter per strand (mm)</label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="number" id="wp_dia" step="0.001" value="0.30" style="flex:1" oninput="calcWinding('p')">
+          <select id="wp_awg" onchange="awgToMm('wp_dia','wp_awg','wp_dia_display')" style="width:90px;font-size:12px;">
+            <option value="">AWG/SWG</option>
+            <option value="0.813">AWG 20</option><option value="0.724">AWG 21</option>
+            <option value="0.644">AWG 22</option><option value="0.574">AWG 23</option>
+            <option value="0.511">AWG 24</option><option value="0.455">AWG 25</option>
+            <option value="0.405">AWG 26</option><option value="0.361">AWG 27</option>
+            <option value="0.321">AWG 28</option><option value="0.286">AWG 29</option>
+            <option value="0.255">AWG 30</option><option value="0.227">AWG 31</option>
+            <option value="0.202">AWG 32</option><option value="0.180">AWG 33</option>
+            <option value="0.160">AWG 34</option><option value="0.143">AWG 35</option>
+            <option value="0.127">AWG 36</option><option value="0.114">AWG 37</option>
+            <option value="0.101">AWG 38</option><option value="0.090">AWG 39</option>
+            <option value="0.080">AWG 40</option>
+          </select>
+        </div>
+        <div class="hint" id="wp_dia_display">Single strand Ø 0.300 mm</div>
+      </div>
+      <div class="field">
+        <label>Number of strands</label>
+        <input type="number" id="wp_str" value="3" min="1" oninput="calcWinding('p')">
+        <div class="hint" id="wp_bundle_hint">Litz / bundle: 3 × 0.30 mm</div>
+      </div>
+      <div class="field">
+        <label>Wire type</label>
+        <select id="wp_type" onchange="calcWinding('p')">
+          <option value="round">Round magnet wire</option>
+          <option value="litz">Litz wire</option>
+          <option value="foil">Copper foil</option>
+          <option value="flat">Flat/rectangular</option>
+        </select>
+        <div class="hint">Litz reduces AC resistance at high fsw</div>
+      </div>
+      <div class="field">
+        <label>Insulation type</label>
+        <select id="wp_ins">
+          <option value="grade1">Grade 1 (single coat)</option>
+          <option value="grade2" selected>Grade 2 (standard)</option>
+          <option value="grade3">Grade 3 (heavy)</option>
+          <option value="triple">Triple insulated (TIW)</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;" id="wp_calcs">
+      <div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">Bundle area</div><div style="font-family:var(--mono);font-size:14px;color:var(--info)" id="wp_area">—</div></div>
+      <div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">Approx Rdc/m</div><div style="font-family:var(--mono);font-size:14px;color:var(--info)" id="wp_rdcm">—</div></div>
+      <div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">Skin depth @ fsw</div><div style="font-family:var(--mono);font-size:14px;color:var(--info)" id="wp_skin">—</div></div>
+      <div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">Strand vs skin</div><div style="font-family:var(--mono);font-size:14px;" id="wp_skin_ok">—</div></div>
+    </div>
+  </div>
+
+  <!-- Secondary winding -->
+  <div class="section">
+    <div class="section-label">Secondary winding — wire & conductor</div>
+    <div class="grid-4">
+      <div class="field">
+        <label>Wire diameter per strand (mm)</label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="number" id="ws_dia" step="0.001" value="0.50" style="flex:1" oninput="calcWinding('s')">
+          <select id="ws_awg" onchange="awgToMm('ws_dia','ws_awg','ws_dia_display')" style="width:90px;font-size:12px;">
+            <option value="">AWG/SWG</option>
+            <option value="0.813">AWG 20</option><option value="0.724">AWG 21</option>
+            <option value="0.644">AWG 22</option><option value="0.574">AWG 23</option>
+            <option value="0.511">AWG 24</option><option value="0.455">AWG 25</option>
+            <option value="0.405">AWG 26</option><option value="0.361">AWG 27</option>
+            <option value="0.321">AWG 28</option><option value="0.286">AWG 29</option>
+            <option value="0.255">AWG 30</option><option value="0.227">AWG 31</option>
+            <option value="0.202">AWG 32</option><option value="0.180">AWG 33</option>
+            <option value="0.160">AWG 34</option><option value="0.143">AWG 35</option>
+            <option value="0.127">AWG 36</option>
+          </select>
+        </div>
+        <div class="hint" id="ws_dia_display">Single strand Ø 0.500 mm</div>
+      </div>
+      <div class="field">
+        <label>Number of strands</label>
+        <input type="number" id="ws_str" value="5" min="1" oninput="calcWinding('s')">
+        <div class="hint" id="ws_bundle_hint">Bundle: 5 × 0.50 mm</div>
+      </div>
+      <div class="field">
+        <label>Wire type</label>
+        <select id="ws_type" onchange="calcWinding('s')">
+          <option value="round">Round magnet wire</option>
+          <option value="litz">Litz wire</option>
+          <option value="foil">Copper foil</option>
+          <option value="flat">Flat/rectangular</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Insulation type</label>
+        <select id="ws_ins">
+          <option value="grade1">Grade 1 (single coat)</option>
+          <option value="grade2" selected>Grade 2 (standard)</option>
+          <option value="grade3">Grade 3 (heavy)</option>
+          <option value="triple">Triple insulated (TIW)</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+      <div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">Bundle area</div><div style="font-family:var(--mono);font-size:14px;color:var(--info)" id="ws_area">—</div></div>
+      <div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">Approx Rdc/m</div><div style="font-family:var(--mono);font-size:14px;color:var(--info)" id="ws_rdcm">—</div></div>
+      <div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">Skin depth @ fsw</div><div style="font-family:var(--mono);font-size:14px;color:var(--info)" id="ws_skin">—</div></div>
+      <div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">Strand vs skin</div><div style="font-family:var(--mono);font-size:14px;" id="ws_skin_ok">—</div></div>
+    </div>
+  </div>
+
+  <!-- Auxiliary winding -->
+  <div class="section">
+    <div class="section-label">Auxiliary winding (optional)</div>
+    <div class="grid-4">
+      <div class="field"><label>Wire dia per strand (mm)</label><input type="number" id="wa_dia" step="0.001" value="0.20" oninput="calcWinding('a')"></div>
+      <div class="field"><label>Number of strands</label><input type="number" id="wa_str" value="1" min="1" oninput="calcWinding('a')"><div class="hint" id="wa_bundle_hint">Single strand</div></div>
+      <div class="field"><label>Wire type</label>
+        <select id="wa_type"><option value="round" selected>Round magnet wire</option><option value="litz">Litz</option></select>
+      </div>
+      <div class="field"><label>Purpose</label>
+        <select id="wa_purpose">
+          <option value="bias">Bias / VCC supply</option>
+          <option value="feedback">Feedback sense</option>
+          <option value="aux_out">Auxiliary output</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Insulation & safety</div>
+    <div class="grid-3">
+      <div class="field"><label>Insulation class</label>
+        <select id="ins_class">
+          <option value="ClassA">Class A (105°C)</option>
+          <option value="ClassB">Class B (130°C)</option>
+          <option value="ClassF" selected>Class F (155°C)</option>
+          <option value="ClassH">Class H (180°C)</option>
+        </select>
+      </div>
+      <div class="field"><label>Safety standard</label>
+        <select id="safety_std">
+          <option value="IEC61558">IEC 61558</option>
+          <option value="EN60950" selected>EN 60950 / IEC 62368</option>
+          <option value="UL">UL 60950</option>
+        </select>
+      </div>
+      <div class="field"><label>Isolation class</label>
+        <select id="iso_class">
+          <option value="basic">Basic insulation</option>
+          <option value="reinforced" selected>Reinforced insulation</option>
+          <option value="double">Double insulation</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-3" style="margin-top:10px">
+      <div class="field"><label>Creepage distance (mm)</label><input type="number" id="creepage" step="0.1" value="6.4"><div class="hint">Per IEC62368 for 250 Vac, reinf.</div></div>
+      <div class="field"><label>Clearance distance (mm)</label><input type="number" id="clearance" step="0.1" value="3.2"></div>
+      <div class="field"><label>No. of insulation tape layers</label><input type="number" id="tape_layers" value="3"><div class="hint">Between pri. and sec. bobbin sections</div></div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-outline" onclick="showPage('p-core')">← Back</button>
+    <button class="btn btn-primary" onclick="showPage('p-datasheet')">Next: Datasheet →</button>
+  </div>
+</div>
+
+<!-- PAGE: Datasheet -->
+<div class="page" id="p-datasheet">
+  <div class="page-header">
+    <div class="page-title">Datasheet reference values</div>
+    <div class="page-desc">Enter specified values to compare against your design or sample measurement</div>
+  </div>
+  <div class="alert alert-info">These are the "golden" values. The verifier will flag deviations outside tolerance.</div>
+  <div class="section">
+    <div class="section-label">Inductance specifications</div>
+    <div class="grid-3">
+      <div class="field"><label>Lp specified (µH)</label><input type="number" id="ds_lp" value="620"></div>
+      <div class="field"><label>Lp tolerance (%)</label><input type="number" id="ds_lp_tol" value="10"></div>
+      <div class="field"><label>Lp test condition</label><input type="text" id="ds_lp_cond" value="100kHz, 0.1V, no DC bias"></div>
+    </div>
+    <div class="grid-3" style="margin-top:10px">
+      <div class="field"><label>Llk max specified (µH)</label><input type="number" id="ds_llk" value="15"></div>
+      <div class="field"><label>Llk/Lp max ratio (%)</label><input type="number" id="ds_llk_ratio" value="5"></div>
+      <div class="field"><label>Al specified (nH/N²)</label><input type="number" id="ds_al" value="270"></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-label">Turns ratio & winding</div>
+    <div class="grid-3">
+      <div class="field"><label>Turns ratio Np:Ns</label><input type="text" id="ds_turns" value="8:1"><div class="hint">e.g. 8:1 or 48:6</div></div>
+      <div class="field"><label>Rdc primary max (mΩ)</label><input type="number" id="ds_rdc_p" value="400"></div>
+      <div class="field"><label>Rdc secondary max (mΩ)</label><input type="number" id="ds_rdc_s" value="25"></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-label">Stress ratings</div>
+    <div class="grid-4">
+      <div class="field"><label>Vds FET limit (V)</label><input type="number" id="ds_vds" value="700"></div>
+      <div class="field"><label>Sec diode Vr limit (V)</label><input type="number" id="ds_vd" value="100"></div>
+      <div class="field"><label>Hipot test voltage (Vac)</label><input type="number" id="ds_hipot" value="3000"></div>
+      <div class="field"><label>Isolation resistance (MΩ)</label><input type="number" id="ds_ir" value="100"></div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-outline" onclick="showPage('p-winding')">← Back</button>
+    <button class="btn btn-primary" onclick="runVerification(); showPage('p-results')">Run verification →</button>
+  </div>
+</div>
+
+<!-- PAGE: Design Verification Results -->
+<div class="page" id="p-results">
+  <div class="page-header">
+    <div class="page-title">Design verification report</div>
+    <div class="page-desc">Calculated parameters vs. design limits and datasheet specifications</div>
+  </div>
+  <div id="results-content">
+    <div class="summary-banner">
+      <div class="sum-pill pass-bg"><div class="sum-num pass" id="r-pass">—</div><div class="sum-lbl">Pass</div></div>
+      <div class="sum-pill warn-bg"><div class="sum-num warn" id="r-warn">—</div><div class="sum-lbl">Warning</div></div>
+      <div class="sum-pill fail-bg"><div class="sum-num fail" id="r-fail">—</div><div class="sum-lbl">Fail</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Calculated design values</div>
+      <div class="calc-grid" id="calc-grid"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Verification checks</div>
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th style="width:80px">Status</th>
+            <th>Check</th>
+            <th style="width:200px">Values</th>
+          </tr>
+        </thead>
+        <tbody id="checks-body"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="runVerification()">↺ Recalculate</button>
+    <button class="btn btn-outline" onclick="showPage('p-sample')">Inspect sample →</button>
+  </div>
+</div>
+
+<!-- PAGE: Sample Inspection -->
+<div class="page" id="p-sample">
+  <div class="page-header">
+    <div class="page-title">Sample inspection</div>
+    <div class="page-desc">Physical and electrical tests on the received transformer sample</div>
+  </div>
+  <div class="alert alert-warn">Record actual measured values. Limits are auto-filled from your datasheet entries.</div>
+
+  <div class="section">
+    <div class="section-label">Sample identification</div>
+    <div class="grid-4">
+      <div class="field"><label>Sample ID / lot number</label><input type="text" id="si_lot" placeholder="e.g. LOT-2024-A01"></div>
+      <div class="field"><label>Date received</label><input type="date" id="si_date"></div>
+      <div class="field"><label>Quantity inspected</label><input type="number" id="si_qty" value="3"></div>
+      <div class="field"><label>Inspector</label><input type="text" id="si_inspector"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Electrical measurements (LCR meter)</div>
+
+    <!-- Lp -->
+    <div class="inspection-item">
+      <div class="pass-light" id="si-lp-light"></div>
+      <div class="item-left">
+        <div class="item-name">Primary inductance Lp</div>
+        <div class="item-method">LCR · Pin 1→2, others open</div>
+        <div class="item-spec" id="si-lp-spec">Spec: — µH ± —%</div>
+      </div>
+      <div class="item-right">
+        <div class="item-input-row">
+          <div class="field" style="flex:1"><label>Measured value (µH)</label><input type="number" id="si_lp_val" placeholder="µH" oninput="evalSample('si_lp_val','si-lp-light',getSiLimits('lp'))"></div>
+          <div class="field" style="min-width:120px"><label>Test freq (kHz)</label><input type="number" id="si_lp_freq" value="100"></div>
+        </div>
+        <div id="si-lp-msg" class="check-advice"></div>
+      </div>
+    </div>
+
+    <!-- Llk -->
+    <div class="inspection-item">
+      <div class="pass-light" id="si-llk-light"></div>
+      <div class="item-left">
+        <div class="item-name">Leakage inductance Llk</div>
+        <div class="item-method">LCR · Pin 1→2, sec shorted</div>
+        <div class="item-spec" id="si-llk-spec">Spec: max — µH</div>
+      </div>
+      <div class="item-right">
+        <div class="item-input-row">
+          <div class="field" style="flex:1"><label>Measured value (µH)</label><input type="number" id="si_llk_val" placeholder="µH" oninput="evalSampleMax('si_llk_val','si-llk-light','si-llk-msg',()=>parseFloat(document.getElementById('ds_llk').value)||999)"></div>
+        </div>
+        <div id="si-llk-msg" class="check-advice"></div>
+      </div>
+    </div>
+
+    <!-- Rdc Primary -->
+    <div class="inspection-item">
+      <div class="pass-light" id="si-rdcp-light"></div>
+      <div class="item-left">
+        <div class="item-name">Rdc primary</div>
+        <div class="item-method">4-wire mΩ meter or LCR DC</div>
+        <div class="item-spec" id="si-rdcp-spec">Spec: max — mΩ</div>
+      </div>
+      <div class="item-right">
+        <div class="item-input-row">
+          <div class="field" style="flex:1"><label>Measured value (mΩ)</label><input type="number" id="si_rdcp_val" placeholder="mΩ" oninput="evalSampleMax('si_rdcp_val','si-rdcp-light','si-rdcp-msg',()=>parseFloat(document.getElementById('ds_rdc_p').value)||9999)"></div>
+        </div>
+        <div id="si-rdcp-msg" class="check-advice"></div>
+      </div>
+    </div>
+
+    <!-- Rdc Secondary -->
+    <div class="inspection-item">
+      <div class="pass-light" id="si-rdcs-light"></div>
+      <div class="item-left">
+        <div class="item-name">Rdc secondary</div>
+        <div class="item-method">4-wire mΩ meter or LCR DC</div>
+        <div class="item-spec" id="si-rdcs-spec">Spec: max — mΩ</div>
+      </div>
+      <div class="item-right">
+        <div class="item-input-row">
+          <div class="field" style="flex:1"><label>Measured value (mΩ)</label><input type="number" id="si_rdcs_val" placeholder="mΩ" oninput="evalSampleMax('si_rdcs_val','si-rdcs-light','si-rdcs-msg',()=>parseFloat(document.getElementById('ds_rdc_s').value)||9999)"></div>
+        </div>
+        <div id="si-rdcs-msg" class="check-advice"></div>
+      </div>
+    </div>
+
+    <!-- Turns ratio check -->
+    <div class="inspection-item">
+      <div class="pass-light" id="si-tr-light"></div>
+      <div class="item-left">
+        <div class="item-name">Turns ratio verification</div>
+        <div class="item-method">Apply low Vac to primary, measure sec</div>
+        <div class="item-spec" id="si-tr-spec">Spec: Np:Ns = —</div>
+      </div>
+      <div class="item-right">
+        <div class="item-input-row">
+          <div class="field" style="flex:1"><label>Vin applied (Vac)</label><input type="number" id="si_tr_vin" value="10" placeholder="V" oninput="evalTurnsRatio()"></div>
+          <div class="field" style="flex:1"><label>Vsec measured (Vac)</label><input type="number" id="si_tr_vout" placeholder="V" oninput="evalTurnsRatio()"></div>
+        </div>
+        <div id="si-tr-msg" class="check-advice"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="section">
+    <div class="section-label">Safety & isolation tests</div>
+
+    <!-- Hipot -->
+    <div class="inspection-item">
+      <div class="pass-light" id="si-hipot-light"></div>
+      <div class="item-left">
+        <div class="item-name">Hipot / dielectric strength</div>
+        <div class="item-method">Hi-pot tester · 1min test</div>
+        <div class="item-spec" id="si-hipot-spec">Spec: — Vac</div>
+      </div>
+      <div class="item-right">
+        <div class="item-input-row">
+          <div class="field" style="flex:1"><label>Test voltage applied (Vac)</label><input type="number" id="si_hipot_v" placeholder="Vac"></div>
+          <div class="field" style="flex:1"><label>Leakage current (mA)</label><input type="number" id="si_hipot_i" placeholder="mA" step="0.1"></div>
+          <div class="field" style="min-width:110px"><label>Result</label>
+            <select id="si_hipot_res" onchange="evalSelect('si_hipot_res','si-hipot-light','si-hipot-msg','Pass','Fail')">
+              <option value="">—</option><option value="Pass">Pass</option><option value="Fail">Fail</option>
+            </select>
+          </div>
+        </div>
+        <div id="si-hipot-msg" class="check-advice"></div>
+      </div>
+    </div>
+
+    <!-- Isolation resistance -->
+    <div class="inspection-item">
+      <div class="pass-light" id="si-ir-light"></div>
+      <div class="item-left">
+        <div class="item-name">Insulation resistance</div>
+        <div class="item-method">500 Vdc megohmmeter, 60s</div>
+        <div class="item-spec" id="si-ir-spec">Spec: ≥ — MΩ</div>
+      </div>
+      <div class="item-right">
+        <div class="item-input-row">
+          <div class="field" style="flex:1"><label>Measured (MΩ)</label><input type="number" id="si_ir_val" placeholder="MΩ" oninput="evalSampleMin('si_ir_val','si-ir-light','si-ir-msg',()=>parseFloat(document.getElementById('ds_ir').value)||100)"></div>
+        </div>
+        <div id="si-ir-msg" class="check-advice"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Visual inspection</div>
+    <div class="grid-3">
+      <div class="field"><label>Core assembly</label>
+        <select id="si_core_vis" onchange="updateVisual()">
+          <option value="">—</option>
+          <option value="pass">OK — no cracks/chips</option>
+          <option value="warn">Minor cosmetic issue</option>
+          <option value="fail">Cracked / damaged core</option>
+        </select>
+      </div>
+      <div class="field"><label>Winding / wire condition</label>
+        <select id="si_wire_vis" onchange="updateVisual()">
+          <option value="">—</option>
+          <option value="pass">OK — clean, no damage</option>
+          <option value="warn">Minor abrasion</option>
+          <option value="fail">Exposed conductor / burnt</option>
+        </select>
+      </div>
+      <div class="field"><label>Potting / encapsulation</label>
+        <select id="si_pot_vis" onchange="updateVisual()">
+          <option value="">—</option>
+          <option value="pass">Fully encapsulated</option>
+          <option value="warn">Partial / void visible</option>
+          <option value="fail">Missing / cracked</option>
+          <option value="na">Not potted (open design)</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-3" style="margin-top:10px">
+      <div class="field"><label>Pin/terminal condition</label>
+        <select id="si_pin_vis" onchange="updateVisual()">
+          <option value="">—</option>
+          <option value="pass">OK — straight, tin-coated</option>
+          <option value="warn">Minor oxidation</option>
+          <option value="fail">Bent / corroded</option>
+        </select>
+      </div>
+      <div class="field"><label>Markings / label</label>
+        <select id="si_mark_vis" onchange="updateVisual()">
+          <option value="">—</option>
+          <option value="pass">Correct & legible</option>
+          <option value="warn">Partially legible</option>
+          <option value="fail">Missing / incorrect</option>
+        </select>
+      </div>
+      <div class="field"><label>Dimensions / footprint</label>
+        <select id="si_dim_vis" onchange="updateVisual()">
+          <option value="">—</option>
+          <option value="pass">Within tolerance</option>
+          <option value="fail">Out of spec</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Inspector notes</div>
+    <div class="notes-box">
+      <textarea id="si_notes" placeholder="Record observations, anomalies, equipment used, ambient conditions..."></textarea>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Overall sample verdict</div>
+    <div class="grid-3">
+      <div class="field"><label>Disposition</label>
+        <select id="si_verdict">
+          <option value="">— Pending —</option>
+          <option value="Accept">✓ Accept</option>
+          <option value="Conditional">⚠ Conditional accept</option>
+          <option value="Reject">✗ Reject</option>
+        </select>
+      </div>
+      <div class="field"><label>Approved by</label><input type="text" id="si_approver"></div>
+      <div class="field"><label>Sign-off date</label><input type="date" id="si_signoff_date"></div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-outline" onclick="showPage('p-guide')">← Measurement guide</button>
+    <button class="btn btn-outline" onclick="showPage('p-results')">← Design results</button>
+    <button class="btn btn-primary" onclick="showPage('p-report')">Generate report →</button>
+  </div>
+</div>
+
+<!-- PAGE: Measurement Guide -->
+<div class="page" id="p-guide">
+  <div class="page-header">
+    <div class="page-title">Measurement guide</div>
+    <div class="page-desc">Step-by-step LCR meter instructions, wiring diagrams, dot notation, and what to expect — for anyone without prior experience</div>
+  </div>
+
+  <!-- Dot notation explainer -->
+  <div class="section">
+    <div class="section-label">Understanding dot notation</div>
+    <div class="meas-card">
+      <div class="meas-card-header">
+        <div class="meas-card-num">●</div>
+        <div><div class="meas-card-title">What the dot (•) means on a transformer</div>
+        <div class="meas-card-sub">This is the most important concept before measuring anything</div></div>
+      </div>
+      <div class="meas-card-body">
+        <div class="meas-layout" style="grid-template-columns:280px 1fr">
+          <div class="meas-diagram">
+            <svg width="260" height="200" viewBox="0 0 260 200" style="background:var(--surface2);border-radius:8px;">
+              <!-- Core symbol -->
+              <rect x="115" y="30" width="12" height="140" fill="#3a4a64" rx="2"/>
+              <rect x="133" y="30" width="12" height="140" fill="#3a4a64" rx="2"/>
+              <!-- Primary winding coils -->
+              <path d="M80,50 Q95,50 95,65 Q95,80 80,80" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <path d="M80,80 Q95,80 95,95 Q95,110 80,110" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <path d="M80,110 Q95,110 95,125 Q95,140 80,140" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <line x1="80" y1="50" x2="50" y2="50" stroke="#38bdf8" stroke-width="2"/>
+              <line x1="80" y1="140" x2="50" y2="140" stroke="#38bdf8" stroke-width="2"/>
+              <!-- Secondary winding coils -->
+              <path d="M160,60 Q145,60 145,75 Q145,90 160,90" fill="none" stroke="#22c55e" stroke-width="2.5"/>
+              <path d="M160,90 Q145,90 145,105 Q145,120 160,120" fill="none" stroke="#22c55e" stroke-width="2.5"/>
+              <line x1="160" y1="60" x2="210" y2="60" stroke="#22c55e" stroke-width="2"/>
+              <line x1="160" y1="120" x2="210" y2="120" stroke="#22c55e" stroke-width="2"/>
+              <!-- Dot marks -->
+              <circle cx="50" cy="50" r="5" fill="#f59e0b"/>
+              <circle cx="210" cy="60" r="5" fill="#f59e0b"/>
+              <!-- Labels -->
+              <text x="38" y="47" font-size="9" fill="#38bdf8" font-family="monospace">P1</text>
+              <text x="38" y="145" font-size="9" fill="#38bdf8" font-family="monospace">P2</text>
+              <text x="215" y="57" font-size="9" fill="#22c55e" font-family="monospace">S1</text>
+              <text x="215" y="125" font-size="9" fill="#22c55e" font-family="monospace">S2</text>
+              <text x="27" y="48" font-size="14" fill="#f59e0b">•</text>
+              <text x="200" y="58" font-size="14" fill="#f59e0b">•</text>
+              <text x="20" y="100" font-size="10" fill="#8fa3c0" font-family="monospace">PRIMARY</text>
+              <text x="170" y="100" font-size="10" fill="#8fa3c0" font-family="monospace">SECONDARY</text>
+              <!-- Arrow showing current flow -->
+              <text x="60" y="185" font-size="10" fill="#f59e0b" font-family="monospace">● = start of winding</text>
+            </svg>
+            <div class="meas-diagram-label">Flyback transformer — dot notation</div>
+          </div>
+          <div>
+            <div class="guide-step" style="padding-top:0">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">What the dot means</div>
+                <div class="step-detail">The dot (•) marks the <strong style="color:var(--warn)">start</strong> of each winding — the terminal where current enters when the winding is energised in the positive direction. All dotted terminals go positive at the same moment in the AC cycle.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Why it matters for flyback</div>
+                <div class="step-detail">In a flyback, the secondary is <em>inverted</em> relative to a forward converter — energy is stored then released. The dot tells you the polarity so you wire the diode the right way. If the dot is on S1, the diode anode goes to S1.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">How to verify the dot on a received sample</div>
+                <div class="step-detail">Connect a 9 V battery (+) to pin P1 (dotted primary pin) through a 1 kΩ resistor. The moment you connect, momentarily touch then remove. Watch the secondary with a voltmeter or scope. The dotted secondary pin (S1) will go positive. If it goes negative, the dot is reversed or winding is backwards.</div>
+                <div class="step-tip">Tip: Do NOT hold the battery connected — the transformer is not rated for DC steady-state. A 50–100 ms tap is enough to see the polarity pulse.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Reading the schematic symbols</div>
+                <div class="step-detail">On pin-out diagrams: <span style="color:var(--warn)">●</span> = dotted start pin. On winding diagrams, the spiral that starts at the dot wraps in the same direction on both primary and secondary. Opposite dot positions = opposite polarity (used in push-pull or for negative rails).</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dot-legend">
+          <div class="dot-legend-item"><span style="color:var(--warn);font-size:18px">●</span> Dot = start of winding, goes positive first</div>
+          <div class="dot-legend-item"><span style="color:#38bdf8;font-weight:600">P1/P2</span> Primary terminals</div>
+          <div class="dot-legend-item"><span style="color:#22c55e;font-weight:600">S1/S2</span> Secondary terminals</div>
+          <div class="dot-legend-item"><span style="color:var(--text3)">NC</span> Not connected / leave open during measurement</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Measurement 1: Lp -->
+  <div class="section">
+    <div class="section-label">Electrical measurements — LCR meter setup</div>
+
+    <div class="meas-card">
+      <div class="meas-card-header">
+        <div class="meas-card-num">M1</div>
+        <div><div class="meas-card-title">Primary inductance — Lp</div>
+        <div class="meas-card-sub">The most important parameter. Determines peak current, Bmax and stored energy.</div></div>
+      </div>
+      <div class="meas-card-body">
+        <div class="meas-layout">
+          <div class="meas-diagram">
+            <svg width="220" height="175" viewBox="0 0 220 175" style="background:var(--surface2);border-radius:8px;">
+              <!-- Core -->
+              <rect x="100" y="25" width="10" height="125" fill="#3a4a64" rx="2"/>
+              <rect x="114" y="25" width="10" height="125" fill="#3a4a64" rx="2"/>
+              <!-- Primary coils -->
+              <path d="M72,40 Q86,40 86,53 Q86,66 72,66" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <path d="M72,66 Q86,66 86,79 Q86,92 72,92" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <path d="M72,92 Q86,92 86,105 Q86,118 72,118" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <line x1="72" y1="40" x2="40" y2="40" stroke="#38bdf8" stroke-width="2"/>
+              <line x1="72" y1="118" x2="40" y2="118" stroke="#38bdf8" stroke-width="2"/>
+              <!-- Secondary (open / NC) -->
+              <path d="M138,50 Q124,50 124,63 Q124,76 138,76" fill="none" stroke="#3a4a64" stroke-width="2" stroke-dasharray="4,3"/>
+              <path d="M138,76 Q124,76 124,89 Q124,102 138,102" fill="none" stroke="#3a4a64" stroke-width="2" stroke-dasharray="4,3"/>
+              <line x1="138" y1="50" x2="175" y2="50" stroke="#3a4a64" stroke-width="1.5" stroke-dasharray="4,3"/>
+              <line x1="138" y1="102" x2="175" y2="102" stroke="#3a4a64" stroke-width="1.5" stroke-dasharray="4,3"/>
+              <!-- LCR meter box -->
+              <rect x="2" y="65" width="32" height="46" rx="4" fill="var(--surface)" stroke="var(--border2)" stroke-width="1.5"/>
+              <text x="18" y="84" text-anchor="middle" font-size="8" fill="#8fa3c0" font-family="monospace">LCR</text>
+              <text x="18" y="96" text-anchor="middle" font-size="8" fill="#8fa3c0" font-family="monospace">meter</text>
+              <!-- Connections Hi/Lo -->
+              <line x1="34" y1="74" x2="40" y2="74" stroke="#ef4444" stroke-width="2"/>
+              <line x1="40" y1="74" x2="40" y2="40" stroke="#ef4444" stroke-width="2"/>
+              <line x1="34" y1="100" x2="40" y2="100" stroke="#38bdf8" stroke-width="2"/>
+              <line x1="40" y1="100" x2="40" y2="118" stroke="#38bdf8" stroke-width="2"/>
+              <!-- Hi Lo labels -->
+              <text x="36" y="72" font-size="9" fill="#ef4444" font-family="monospace">Hi</text>
+              <text x="36" y="113" font-size="9" fill="#38bdf8" font-family="monospace">Lo</text>
+              <!-- NC label -->
+              <text x="178" y="48" font-size="9" fill="#556070" font-family="monospace">NC</text>
+              <text x="178" y="104" font-size="9" fill="#556070" font-family="monospace">NC</text>
+              <!-- Dot -->
+              <circle cx="40" cy="40" r="4" fill="#f59e0b"/>
+              <text x="22" y="38" font-size="14" fill="#f59e0b">•</text>
+              <!-- P1 P2 labels -->
+              <text x="42" y="37" font-size="9" fill="#38bdf8" font-family="monospace">P1 (dot)</text>
+              <text x="42" y="130" font-size="9" fill="#38bdf8" font-family="monospace">P2</text>
+              <text x="60" y="165" font-size="9" fill="#556070" font-family="monospace">secondary = open circuit</text>
+            </svg>
+            <div class="meas-diagram-label">LCR Hi → P1(dot) · Lo → P2 · Secondary: OPEN</div>
+          </div>
+          <div class="meas-steps">
+            <div class="guide-step" style="padding-top:0">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Leave all secondary and auxiliary pins open (floating)</div>
+                <div class="step-detail">Do not connect anything to S1, S2, or auxiliary winding pins. Any load or short on secondary will couple back and corrupt the Lp reading.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Connect LCR meter: Hi → P1 (dotted pin), Lo → P2</div>
+                <div class="step-detail">Use Kelvin clips or a proper SMD tweezer fixture if available. For through-hole transformers, ensure firm contact on the pins — oxidized pins can add 5–15% error.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Set LCR meter: L–Q or L–D mode · 100 kHz · 0.1 Vrms · no DC bias</div>
+                <div class="step-detail">The standard test frequency is 100 kHz unless the datasheet specifies otherwise. Use the lowest signal level available (0.1 V) to stay in the linear magnetic region. Series mode (Ls) is preferred for high-Q inductors; parallel mode (Lp) for lossy ones — choose series for transformer primaries.</div>
+                <div class="step-tip">If your meter shows only one frequency, use 1 kHz and note it — values will differ but the ratio Llk/Lp stays consistent.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Record the Ls reading and the Q factor</div>
+                <div class="step-detail">Enter Ls as Lp in the sample inspection page. Q should typically be > 20 at 100 kHz for a well-designed flyback primary. Low Q (&lt;10) may indicate a lossy core or incorrect frequency selection.</div>
+              </div>
+            </div>
+            <table class="conn-table" style="margin-top:8px">
+              <tr><th>Pin</th><th>Connection</th><th>Note</th></tr>
+              <tr><td class="conn-hi">P1 (dotted)</td><td class="conn-hi">LCR Hi terminal</td><td style="color:var(--text2)">Start of primary winding</td></tr>
+              <tr><td>P2</td><td class="conn-lo">LCR Lo terminal</td><td style="color:var(--text2)">End of primary</td></tr>
+              <tr><td class="conn-nc">S1, S2, Aux</td><td class="conn-nc">OPEN — do not connect</td><td class="conn-nc">All secondary pins floating</td></tr>
+            </table>
+            <div class="expected-box">Expected: value within ±10% of datasheet Lp spec. Q factor typically 20–100 at 100 kHz.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- M2: Llk -->
+    <div class="meas-card">
+      <div class="meas-card-header">
+        <div class="meas-card-num">M2</div>
+        <div><div class="meas-card-title">Leakage inductance — Llk</div>
+        <div class="meas-card-sub">Tells you how tightly the primary and secondary are coupled. Drives snubber design.</div></div>
+      </div>
+      <div class="meas-card-body">
+        <div class="meas-layout">
+          <div class="meas-diagram">
+            <svg width="220" height="175" viewBox="0 0 220 175" style="background:var(--surface2);border-radius:8px;">
+              <rect x="100" y="25" width="10" height="125" fill="#3a4a64" rx="2"/>
+              <rect x="114" y="25" width="10" height="125" fill="#3a4a64" rx="2"/>
+              <path d="M72,40 Q86,40 86,53 Q86,66 72,66" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <path d="M72,66 Q86,66 86,79 Q86,92 72,92" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <path d="M72,92 Q86,92 86,105 Q86,118 72,118" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <line x1="72" y1="40" x2="40" y2="40" stroke="#38bdf8" stroke-width="2"/>
+              <line x1="72" y1="118" x2="40" y2="118" stroke="#38bdf8" stroke-width="2"/>
+              <!-- Secondary SHORTED -->
+              <path d="M138,50 Q124,50 124,63 Q124,76 138,76" fill="none" stroke="#22c55e" stroke-width="2.5"/>
+              <path d="M138,76 Q124,76 124,89 Q124,102 138,102" fill="none" stroke="#22c55e" stroke-width="2.5"/>
+              <line x1="138" y1="50" x2="185" y2="50" stroke="#22c55e" stroke-width="2"/>
+              <line x1="138" y1="102" x2="185" y2="102" stroke="#22c55e" stroke-width="2"/>
+              <!-- Short wire on secondary -->
+              <line x1="185" y1="50" x2="185" y2="102" stroke="#ef4444" stroke-width="3"/>
+              <text x="188" y="80" font-size="10" fill="#ef4444" font-family="monospace">SHORT</text>
+              <!-- LCR meter -->
+              <rect x="2" y="65" width="32" height="46" rx="4" fill="var(--surface)" stroke="var(--border2)" stroke-width="1.5"/>
+              <text x="18" y="84" text-anchor="middle" font-size="8" fill="#8fa3c0" font-family="monospace">LCR</text>
+              <text x="18" y="96" text-anchor="middle" font-size="8" fill="#8fa3c0" font-family="monospace">meter</text>
+              <line x1="34" y1="74" x2="40" y2="74" stroke="#ef4444" stroke-width="2"/>
+              <line x1="40" y1="74" x2="40" y2="40" stroke="#ef4444" stroke-width="2"/>
+              <line x1="34" y1="100" x2="40" y2="100" stroke="#38bdf8" stroke-width="2"/>
+              <line x1="40" y1="100" x2="40" y2="118" stroke="#38bdf8" stroke-width="2"/>
+              <text x="36" y="72" font-size="9" fill="#ef4444" font-family="monospace">Hi</text>
+              <text x="36" y="113" font-size="9" fill="#38bdf8" font-family="monospace">Lo</text>
+              <circle cx="40" cy="40" r="4" fill="#f59e0b"/>
+              <text x="22" y="38" font-size="14" fill="#f59e0b">•</text>
+              <text x="42" y="37" font-size="9" fill="#38bdf8" font-family="monospace">P1</text>
+              <text x="42" y="130" font-size="9" fill="#38bdf8" font-family="monospace">P2</text>
+              <text x="55" y="165" font-size="9" fill="#22c55e" font-family="monospace">secondary = short circuit</text>
+            </svg>
+            <div class="meas-diagram-label">LCR Hi → P1 · Lo → P2 · Secondary: SHORT S1–S2</div>
+          </div>
+          <div class="meas-steps">
+            <div class="guide-step" style="padding-top:0">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Short-circuit all secondary pins together</div>
+                <div class="step-detail">Connect S1 to S2 with a short piece of wire or a clip lead. If there is an auxiliary winding, short its pins too. Any un-shorted winding will prevent a clean leakage measurement.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Connect LCR meter exactly as for M1: Hi → P1, Lo → P2</div>
+                <div class="step-detail">Same connection as Lp measurement — only the secondary changes. Keep the same frequency (100 kHz) and mode (series L).</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Read the inductance — this is Llk</div>
+                <div class="step-detail">The value you read now is the leakage inductance referred to the primary. It is typically 1–5% of Lp. If it reads close to Lp, the secondary short is not making good contact.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Calculate coupling coefficient k</div>
+                <div class="step-detail">k = √(1 − Llk/Lp). A well-designed transformer should have k > 0.97. Enter both values in the sample inspection page — the ratio is checked automatically.</div>
+              </div>
+            </div>
+            <table class="conn-table" style="margin-top:8px">
+              <tr><th>Pin</th><th>Connection</th></tr>
+              <tr><td class="conn-hi">P1 (dot)</td><td class="conn-hi">LCR Hi</td></tr>
+              <tr><td>P2</td><td class="conn-lo">LCR Lo</td></tr>
+              <tr><td style="color:#22c55e">S1 + S2 + Aux</td><td style="color:#ef4444">SHORT all together</td></tr>
+            </table>
+            <div class="expected-box">Expected: Llk = 1–5% of Lp. If Llk/Lp > 8% coupling is poor.</div>
+            <div class="warn-box">⚠ If Llk reading is unstable or changes when you wiggle the short wire, the clip connection has resistance — use a firmer connection.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- M3: Rdc -->
+    <div class="meas-card">
+      <div class="meas-card-header">
+        <div class="meas-card-num">M3</div>
+        <div><div class="meas-card-title">DC resistance — Rdc (primary and secondary)</div>
+        <div class="meas-card-sub">Indicates winding quality, wire gauge correctness and copper loss.</div></div>
+      </div>
+      <div class="meas-card-body">
+        <div class="meas-layout">
+          <div class="meas-diagram">
+            <svg width="220" height="160" viewBox="0 0 220 160" style="background:var(--surface2);border-radius:8px;">
+              <!-- Primary measurement shown -->
+              <rect x="100" y="20" width="10" height="120" fill="#3a4a64" rx="2"/>
+              <rect x="114" y="20" width="10" height="120" fill="#3a4a64" rx="2"/>
+              <path d="M72,35 Q86,35 86,48 Q86,61 72,61" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <path d="M72,61 Q86,61 86,74 Q86,87 72,87" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <path d="M72,87 Q86,87 86,100 Q86,113 72,113" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <line x1="72" y1="35" x2="35" y2="35" stroke="#38bdf8" stroke-width="2"/>
+              <line x1="72" y1="113" x2="35" y2="113" stroke="#38bdf8" stroke-width="2"/>
+              <!-- Ω meter box -->
+              <rect x="2" y="56" width="28" height="36" rx="4" fill="var(--surface)" stroke="var(--border2)" stroke-width="1.5"/>
+              <text x="16" y="72" text-anchor="middle" font-size="8" fill="#8fa3c0" font-family="monospace">mΩ</text>
+              <text x="16" y="84" text-anchor="middle" font-size="8" fill="#8fa3c0" font-family="monospace">meter</text>
+              <line x1="30" y1="64" x2="35" y2="64" stroke="#ef4444" stroke-width="2"/>
+              <line x1="35" y1="64" x2="35" y2="35" stroke="#ef4444" stroke-width="2"/>
+              <line x1="30" y1="80" x2="35" y2="80" stroke="#38bdf8" stroke-width="2"/>
+              <line x1="35" y1="80" x2="35" y2="113" stroke="#38bdf8" stroke-width="2"/>
+              <!-- Secondary open -->
+              <path d="M138,45 Q124,45 124,58 Q124,71 138,71" fill="none" stroke="#3a4a64" stroke-width="2" stroke-dasharray="4,3"/>
+              <path d="M138,71 Q124,71 124,84 Q124,97 138,97" fill="none" stroke="#3a4a64" stroke-width="2" stroke-dasharray="4,3"/>
+              <line x1="138" y1="45" x2="175" y2="45" stroke="#3a4a64" stroke-width="1.5" stroke-dasharray="4,3"/>
+              <line x1="138" y1="97" x2="175" y2="97" stroke="#3a4a64" stroke-width="1.5" stroke-dasharray="4,3"/>
+              <text x="177" y="43" font-size="9" fill="#556070" font-family="monospace">NC</text>
+              <text x="177" y="99" font-size="9" fill="#556070" font-family="monospace">NC</text>
+              <text x="36" y="33" font-size="9" fill="#38bdf8" font-family="monospace">P1</text>
+              <text x="36" y="125" font-size="9" fill="#38bdf8" font-family="monospace">P2</text>
+              <text x="30" y="150" font-size="9" fill="#8fa3c0" font-family="monospace">Repeat with S1-S2 for Rdc_sec</text>
+            </svg>
+            <div class="meas-diagram-label">Ω Hi → P1 · Ω Lo → P2 · others open. Repeat for S1→S2.</div>
+          </div>
+          <div class="meas-steps">
+            <div class="guide-step" style="padding-top:0">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Use DC resistance mode (Rdc or DCR) on your LCR meter, or a milliohm meter</div>
+                <div class="step-detail">Most LCR meters have a DCR or R-DC mode. Select it. If using a multimeter, choose the lowest ohm range (e.g. 200 Ω). Zero/null the leads first — clip them together and press NULL or ZERO. This cancels lead resistance (typically 50–200 mΩ).</div>
+                <div class="step-warn">⚠ Zeroing the leads is critical — without it your reading will be off by the lead resistance, which may be larger than the winding resistance itself.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Primary Rdc: Hi → P1, Lo → P2, all others open</div>
+                <div class="step-detail">Leave all secondary pins floating. Record the reading in mΩ. A typical primary Rdc for a 60 W flyback is 150–600 mΩ depending on wire gauge and turns count.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Secondary Rdc: move Hi → S1, Lo → S2, all others open</div>
+                <div class="step-detail">Disconnect primary leads. Connect to the secondary pins. Secondary Rdc is often much lower (10–50 mΩ for high-current secondaries). A 4-wire Kelvin measurement is strongly preferred here.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">What the values tell you</div>
+                <div class="step-detail">High Rdc means thinner wire or more turns than specified. Low Rdc may mean fewer turns (verify with turns ratio test). Copper loss in primary = Ip_rms² × Rdc_p. A rough estimate: keep Rdc loss below 0.5% of rated power per winding.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- M4: Turns ratio -->
+    <div class="meas-card">
+      <div class="meas-card-header">
+        <div class="meas-card-num">M4</div>
+        <div><div class="meas-card-title">Turns ratio verification</div>
+        <div class="meas-card-sub">Confirms Np/Ns ratio and winding polarity (dot direction) simultaneously.</div></div>
+      </div>
+      <div class="meas-card-body">
+        <div class="meas-layout">
+          <div class="meas-diagram">
+            <svg width="220" height="190" viewBox="0 0 220 190" style="background:var(--surface2);border-radius:8px;">
+              <rect x="100" y="25" width="10" height="130" fill="#3a4a64" rx="2"/>
+              <rect x="114" y="25" width="10" height="130" fill="#3a4a64" rx="2"/>
+              <!-- Primary coils -->
+              <path d="M72,40 Q86,40 86,53 Q86,66 72,66" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <path d="M72,66 Q86,66 86,79 Q86,92 72,92" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <path d="M72,92 Q86,92 86,105 Q86,118 72,118" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <line x1="72" y1="40" x2="30" y2="40" stroke="#38bdf8" stroke-width="2"/>
+              <line x1="72" y1="118" x2="30" y2="118" stroke="#38bdf8" stroke-width="2"/>
+              <!-- Secondary coils -->
+              <path d="M138,55 Q124,55 124,68 Q124,81 138,81" fill="none" stroke="#22c55e" stroke-width="2.5"/>
+              <path d="M138,81 Q124,81 124,94 Q124,107 138,107" fill="none" stroke="#22c55e" stroke-width="2.5"/>
+              <line x1="138" y1="55" x2="190" y2="55" stroke="#22c55e" stroke-width="2"/>
+              <line x1="138" y1="107" x2="190" y2="107" stroke="#22c55e" stroke-width="2"/>
+              <!-- AC source symbol on primary -->
+              <circle cx="16" cy="79" r="12" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+              <text x="16" y="83" text-anchor="middle" font-size="11" fill="#f59e0b" font-family="monospace">~</text>
+              <line x1="28" y1="73" x2="30" y2="73" stroke="#f59e0b" stroke-width="1.5"/>
+              <line x1="30" y1="73" x2="30" y2="40" stroke="#f59e0b" stroke-width="1.5"/>
+              <line x1="28" y1="85" x2="30" y2="85" stroke="#f59e0b" stroke-width="1.5"/>
+              <line x1="30" y1="85" x2="30" y2="118" stroke="#f59e0b" stroke-width="1.5"/>
+              <!-- Voltmeter on secondary -->
+              <circle cx="204" cy="81" r="12" fill="none" stroke="#22c55e" stroke-width="1.5"/>
+              <text x="204" y="85" text-anchor="middle" font-size="9" fill="#22c55e" font-family="monospace">V</text>
+              <line x1="192" y1="75" x2="190" y2="75" stroke="#22c55e" stroke-width="1.5"/>
+              <line x1="190" y1="75" x2="190" y2="55" stroke="#22c55e" stroke-width="1.5"/>
+              <line x1="192" y1="87" x2="190" y2="87" stroke="#22c55e" stroke-width="1.5"/>
+              <line x1="190" y1="87" x2="190" y2="107" stroke="#22c55e" stroke-width="1.5"/>
+              <!-- Dot marks -->
+              <circle cx="30" cy="40" r="4" fill="#f59e0b"/>
+              <circle cx="190" cy="55" r="4" fill="#f59e0b"/>
+              <text x="12" y="38" font-size="14" fill="#f59e0b">•</text>
+              <text x="176" y="53" font-size="14" fill="#f59e0b">•</text>
+              <!-- Labels -->
+              <text x="31" y="37" font-size="9" fill="#38bdf8" font-family="monospace">P1(+)</text>
+              <text x="31" y="130" font-size="9" fill="#38bdf8" font-family="monospace">P2</text>
+              <text x="62" y="180" font-size="9" fill="#f59e0b" font-family="monospace">Vin = 10 Vac (e.g. Variac or sig.gen)</text>
+              <text x="62" y="165" font-size="9" fill="#8fa3c0" font-family="monospace">Vsec = Vin × (Ns/Np)</text>
+            </svg>
+            <div class="meas-diagram-label">Apply low Vac to P1–P2, read Vac at S1–S2</div>
+          </div>
+          <div class="meas-steps">
+            <div class="guide-step" style="padding-top:0">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Apply a safe low AC voltage to the primary — 5 to 12 Vac</div>
+                <div class="step-detail">Use a signal generator, a small 9 V toroidal isolation transformer, or a Variac set to 10 V. Connect to P1 (dotted) and P2. Do NOT use mains voltage — you only need a few volts to verify the ratio safely. Keep all other pins free.</div>
+                <div class="step-warn">⚠ Use an isolation transformer between mains and your test setup. Never apply mains directly to transformer pins without proper isolation.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Measure Vac at S1–S2 with a multimeter in VAC mode</div>
+                <div class="step-detail">Calculate: Turns ratio n = Vin / Vsec. For example: Vin = 10.00 V, Vsec = 1.25 V → n = 8.0 which matches Np:Ns = 48:6. Compare to the specified ratio.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Check polarity to confirm dot position</div>
+                <div class="step-detail">Switch your meter to DC mode (or use a scope). With the (+) terminal of your AC source connected to P1 (dotted), the dotted secondary pin S1 should be positive. If it reads negative, the dot on the secondary is reversed from the schematic — note this for your report.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Repeat for auxiliary winding</div>
+                <div class="step-detail">Apply Vin to primary as before. Measure Vaux between Aux1 and Aux2. Calculate aux turns ratio. This confirms the auxiliary voltage at your chosen Np/Ns ratio.</div>
+              </div>
+            </div>
+            <div class="expected-box">Expected: ratio within ±3% of Np/Ns. Polarity matches dot marking on schematic.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- M5: Hipot -->
+    <div class="meas-card">
+      <div class="meas-card-header">
+        <div class="meas-card-num">M5</div>
+        <div><div class="meas-card-title">Hipot (dielectric withstand) & isolation resistance</div>
+        <div class="meas-card-sub">Safety-critical — verifies insulation between primary and secondary.</div></div>
+      </div>
+      <div class="meas-card-body">
+        <div class="meas-layout" style="grid-template-columns:220px 1fr">
+          <div class="meas-diagram">
+            <svg width="200" height="185" viewBox="0 0 200 185" style="background:var(--surface2);border-radius:8px;">
+              <!-- Core -->
+              <rect x="88" y="20" width="9" height="130" fill="#3a4a64" rx="2"/>
+              <rect x="100" y="20" width="9" height="130" fill="#3a4a64" rx="2"/>
+              <!-- Primary bundle -->
+              <path d="M62,35 Q76,35 76,50 Q76,65 62,65" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <path d="M62,65 Q76,65 76,80 Q76,95 62,95" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <path d="M62,95 Q76,95 76,110 Q76,125 62,125" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+              <line x1="62" y1="35" x2="20" y2="35" stroke="#38bdf8" stroke-width="2"/>
+              <line x1="62" y1="125" x2="20" y2="125" stroke="#38bdf8" stroke-width="2"/>
+              <!-- Join P1&P2 together -->
+              <line x1="20" y1="35" x2="20" y2="125" stroke="#38bdf8" stroke-width="2"/>
+              <line x1="4" y1="80" x2="20" y2="80" stroke="#38bdf8" stroke-width="2"/>
+              <!-- Secondary bundle -->
+              <path d="M128,50 Q114,50 114,65 Q114,80 128,80" fill="none" stroke="#22c55e" stroke-width="2.5"/>
+              <path d="M128,80 Q114,80 114,95 Q114,110 128,110" fill="none" stroke="#22c55e" stroke-width="2.5"/>
+              <line x1="128" y1="50" x2="168" y2="50" stroke="#22c55e" stroke-width="2"/>
+              <line x1="128" y1="110" x2="168" y2="110" stroke="#22c55e" stroke-width="2"/>
+              <line x1="168" y1="50" x2="168" y2="110" stroke="#22c55e" stroke-width="2"/>
+              <line x1="168" y1="80" x2="184" y2="80" stroke="#22c55e" stroke-width="2"/>
+              <!-- Hipot tester labels -->
+              <text x="2" y="78" font-size="8" fill="#ef4444" font-family="monospace">Hi</text>
+              <text x="175" y="78" font-size="8" fill="#8fa3c0" font-family="monospace">Lo</text>
+              <!-- Isolation barrier highlight -->
+              <rect x="83" y="18" width="32" height="135" fill="rgba(245,158,11,0.07)" rx="2"/>
+              <text x="91" y="165" font-size="8" fill="#f59e0b" font-family="monospace">insulation</text>
+              <text x="88" y="175" font-size="8" fill="#f59e0b" font-family="monospace">barrier here</text>
+              <!-- Labels -->
+              <text x="2" y="33" font-size="8" fill="#38bdf8" font-family="monospace">all pri.</text>
+              <text x="2" y="127" font-size="8" fill="#38bdf8" font-family="monospace">joined</text>
+              <text x="155" y="48" font-size="8" fill="#22c55e" font-family="monospace">all sec.</text>
+              <text x="155" y="114" font-size="8" fill="#22c55e" font-family="monospace">joined</text>
+            </svg>
+            <div class="meas-diagram-label">Hi-pot: all primary pins tied → Hi. All secondary pins tied → Lo.</div>
+          </div>
+          <div class="meas-steps">
+            <div class="guide-step" style="padding-top:0">
+              <div class="step-num">!</div>
+              <div class="step-body">
+                <div class="step-title" style="color:var(--fail)">Safety first — high voltage warning</div>
+                <div class="step-detail">Hipot testing applies voltages of 1500–4000 Vac. This is lethal. Use a purpose-built hipot tester with auto-discharge. Do not touch the transformer or test leads during the test. Ensure the test area is clear of personnel.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Tie all primary pins together and connect to HV Hi terminal</div>
+                <div class="step-detail">P1 and P2 (and any other primary pins) are connected together with clip leads. This combined node connects to the Hi (high voltage) terminal of the hipot tester.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Tie all secondary and auxiliary pins together → Lo terminal</div>
+                <div class="step-detail">S1, S2, and all auxiliary pins tied together. Connect this combined node to the Lo (return) terminal. The test measures the insulation between the primary bundle and the secondary bundle.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Apply test voltage for 60 seconds and read leakage current</div>
+                <div class="step-detail">Set the hipot tester to the voltage specified in the datasheet (typically 1500–3000 Vac for reinforced insulation). Apply for 60 s. Leakage current must stay below the tester's trip level — typically 1–10 mA. If the tester trips, the insulation has failed.</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Isolation resistance: same wiring, 500 Vdc, megohmmeter</div>
+                <div class="step-detail">After hipot, use a 500 Vdc megohmmeter with the same connection. Apply for 60 s. Result should be > 100 MΩ. Values below 10 MΩ indicate moisture or insulation damage. Record both time and temperature — insulation resistance is temperature-sensitive.</div>
+              </div>
+            </div>
+            <div class="expected-box">Hipot: no trip, leakage &lt; 1 mA. Isolation resistance: ≥ 100 MΩ @ 500 Vdc.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LCR setup reference -->
+  <div class="section">
+    <div class="section-label">LCR meter setup quick reference</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);font-family:monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Measurement</th>
+            <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);font-family:monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Mode</th>
+            <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);font-family:monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Freq</th>
+            <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);font-family:monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Level</th>
+            <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);font-family:monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Secondary</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text)">Lp (primary inductance)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--info);font-family:monospace">Ls–Q or Ls–D</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text2);font-family:monospace">100 kHz</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text2);font-family:monospace">0.1 Vrms</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text3)">OPEN</td></tr>
+          <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text)">Llk (leakage inductance)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--info);font-family:monospace">Ls–Q or Ls–D</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text2);font-family:monospace">100 kHz</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text2);font-family:monospace">0.1 Vrms</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--fail)">SHORT all sec.</td></tr>
+          <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text)">Rdc primary</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--info);font-family:monospace">DCR / R</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text2);font-family:monospace">DC</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text2);font-family:monospace">null leads</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text3)">OPEN</td></tr>
+          <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text)">Rdc secondary</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--info);font-family:monospace">DCR / R</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text2);font-family:monospace">DC</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text2);font-family:monospace">null leads</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text3)">OPEN (measuring sec.)</td></tr>
+          <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text)">Turns ratio</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--info);font-family:monospace">VAC multimeter</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text2);font-family:monospace">50/60 Hz</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--warn);font-family:monospace">5–12 Vac</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text3)">OPEN (reading Vsec)</td></tr>
+          <tr><td style="padding:7px 10px;color:var(--text)">Hipot / Iso.R</td><td style="padding:7px 10px;color:var(--info);font-family:monospace">Hipot tester</td><td style="padding:7px 10px;color:var(--text2);font-family:monospace">50/60 Hz</td><td style="padding:7px 10px;color:var(--fail);font-family:monospace">HV — see spec</td><td style="padding:7px 10px;color:var(--text3)">ALL joined to Lo</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="showPage('p-sample')">Go to sample inspection →</button>
+  </div>
+</div>
+
+<!-- PAGE: Report -->
+<div class="page" id="p-report">
+  <div class="page-header">
+    <div class="page-title">Report & export</div>
+    <div class="page-desc">Save or print the complete verification record</div>
+  </div>
+  <div class="section">
+    <div class="section-label">Report header</div>
+    <div class="report-meta">
+      <div class="field"><label>Project / product name</label><input type="text" id="rpt_project" placeholder="e.g. 60W AC-DC Adapter"></div>
+      <div class="field"><label>Document number</label><input type="text" id="rpt_docno" placeholder="e.g. TR-VERIF-001"></div>
+      <div class="field"><label>Revision</label><input type="text" id="rpt_rev" value="A"></div>
+      <div class="field"><label>Report date</label><input type="date" id="rpt_date"></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-label">Report summary</div>
+    <div id="report-summary" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;font-family:var(--mono);font-size:12px;line-height:1.8;color:var(--text2);white-space:pre-wrap;"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="generateReport()">↺ Refresh report</button>
+    <button class="btn btn-outline" onclick="window.print()">🖨 Print / Save PDF</button>
+    <button class="btn btn-outline" onclick="exportJSON()">⬇ Export JSON</button>
+    <button class="btn btn-outline" onclick="loadJSON()">⬆ Import JSON</button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(this)">
+  </div>
+  <div class="alert alert-info" style="margin-top:16px">
+    To save as PDF: click Print, then choose "Save as PDF" as the printer destination.
+    The JSON export preserves all field values for later reopening.
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+// ── Navigation ──
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const idx = ['p-operating','p-core','p-winding','p-datasheet','p-guide','p-results','p-sample','p-report'].indexOf(id);
+  document.querySelectorAll('.nav-item')[idx]?.classList.add('active');
+  if (id === 'p-results') { runVerification(); updateSampleSpecs(); }
+  if (id === 'p-sample') { updateSampleSpecs(); }
+  if (id === 'p-report') { generateReport(); }
+}
+
+// ── Helpers ──
+function g(id) { return parseFloat(document.getElementById(id)?.value) || 0; }
+function gs(id) { return (document.getElementById(id)?.value || '').trim(); }
+function fmt(n, d=1) { return isNaN(n) ? '—' : n.toFixed(d); }
+function fmtI(n) { return isNaN(n) ? '—' : Math.round(n).toString(); }
+
+// ── Main Verification ──
+function runVerification() {
+  const vin_min = g('vin_min'), vin_max = g('vin_max');
+  const fsw = g('fsw') * 1e3;
+  const vout = g('vout'), iout = g('iout'), vf = g('vf');
+  const np = g('np'), ns = g('ns');
+  const lp = g('lp'), llk = g('llk'), al = g('al');
+  const ae = g('ae') * 1e-6;
+  const bmax_lim = g('bmax_lim'), bsat = g('bsat');
+  const dmax = g('dmax'), eta = g('eta') / 100;
+  const rdc_p = g('rdc_p'), rdc_s = g('rdc_s');
+  const ds_lp = g('ds_lp'), ds_lp_tol = g('ds_lp_tol');
+  const ds_llk = g('ds_llk'), ds_llk_ratio = g('ds_llk_ratio');
+  const ds_al = g('ds_al'), ds_vds = g('ds_vds'), ds_vd = g('ds_vd');
+  const ds_rdc_p = g('ds_rdc_p'), ds_rdc_s = g('ds_rdc_s');
+
+  const vin_min_dc = vin_min * Math.SQRT2 * 0.9;
+  const vin_max_dc = vin_max * Math.SQRT2;
+  const vout_total = vout + vf;
+  const n = ns > 0 ? np / ns : 0;
+  const pout = vout * iout;
+  const pin = pout / eta;
+
+  const ipp = (2 * pin) / (vin_min_dc * dmax);
+  const d_nom = n > 0 ? (vout_total * n) / (vin_min_dc + vout_total * n) : 0;
+  const d_min = n > 0 ? (vout_total * n) / (vin_max_dc + vout_total * n) : 0;
+  const bmax_calc = ae > 0 && np > 0 ? (lp * 1e-6 * ipp) / (np * ae) * 1e3 : 0;
+  const al_from_lp = np > 0 ? (lp * 1000) / (np * np) : 0;
+  const llk_ratio = lp > 0 ? (llk / lp) * 100 : 0;
+  const vds_max = vin_max_dc + vout_total * n;
+  const vsec_max = n > 0 ? (vin_max_dc / n) + vout : 0;
+  const ipp_rms = ipp * Math.sqrt(dmax / 3);
+  const is_rms = iout * Math.sqrt(1 - dmax);
+
+  // Calc cards
+  const calcs = [
+    { label: 'Vin min DC', val: fmt(vin_min_dc,0) + ' V' },
+    { label: 'Vin max DC', val: fmt(vin_max_dc,0) + ' V' },
+    { label: 'Turns ratio n', val: fmt(n,2) },
+    { label: 'Peak Ip', val: fmt(ipp,2) + ' A' },
+    { label: 'Ip rms', val: fmt(ipp_rms,2) + ' A' },
+    { label: 'Is rms', val: fmt(is_rms,2) + ' A' },
+    { label: 'Bmax', val: fmt(bmax_calc,1) + ' mT' },
+    { label: 'D @ Vin min', val: fmt(d_nom*100,1) + '%' },
+    { label: 'D @ Vin max', val: fmt(d_min*100,1) + '%' },
+    { label: 'Vds max', val: fmt(vds_max,0) + ' V' },
+    { label: 'Vd rev pk', val: fmt(vsec_max,0) + ' V' },
+    { label: 'Llk / Lp', val: fmt(llk_ratio,2) + '%' },
+    { label: 'Al from Lp/Np²', val: fmt(al_from_lp,1) + ' nH/N²' },
+    { label: 'Pout', val: fmt(pout,1) + ' W' },
+    { label: 'Pin', val: fmt(pin,1) + ' W' },
+  ];
+  document.getElementById('calc-grid').innerHTML = calcs.map(c =>
+    `<div class="calc-card"><div class="calc-label">${c.label}</div><div class="calc-val">${c.val}</div></div>`
+  ).join('');
+
+  // Checks
+  let checks = [];
+  function check(label, status, measured, limit, advice) {
+    checks.push({ label, status, measured, limit, advice });
+  }
+
+  // Bmax
+  const bst = bmax_calc > bmax_lim ? 'fail' : bmax_calc > bmax_lim * 0.88 ? 'warn' : 'pass';
+  check('Peak flux density Bmax', bst,
+    `${fmt(bmax_calc,1)} mT`,
+    `Limit ${bmax_lim} mT (Bsat ${bsat} mT)`,
+    bst==='fail'?'Increase Np or Ae, or reduce Ip. Risk of saturation.':bst==='warn'?'Close to limit — verify over temp and at max load.':'Adequate margin.'
+  );
+
+  // Duty cycle
+  const dst = d_nom > dmax ? 'fail' : d_nom > dmax*0.92 ? 'warn' : 'pass';
+  check('Duty cycle @ Vin min', dst,
+    `D = ${fmt(d_nom*100,1)}%`,
+    `Max ${fmt(dmax*100,0)}%`,
+    dst==='fail'?'Increase turns ratio or reduce Lp to allow sufficient on-time.':dst==='warn'?'Very close to Dmax — add margin.':'OK.'
+  );
+
+  // Lp vs datasheet
+  if (ds_lp > 0) {
+    const dev = Math.abs(lp - ds_lp) / ds_lp * 100;
+    const ok = dev <= ds_lp_tol;
+    check('Lp vs datasheet spec', ok?'pass':'warn',
+      `Design ${lp} µH vs spec ${ds_lp} µH`,
+      `Tolerance ±${ds_lp_tol}% (dev ${fmt(dev,1)}%)`,
+      ok?'Within tolerance.':'Deviation exceeds spec — verify gap, winding turns, or Al value.'
+    );
+  }
+
+  // Llk ratio
+  const llkst = llk_ratio > (ds_llk_ratio||5)*1.5 ? 'fail' : llk_ratio > (ds_llk_ratio||5) ? 'warn' : 'pass';
+  check('Leakage inductance ratio', llkst,
+    `Llk/Lp = ${fmt(llk_ratio,2)}%`,
+    `Limit ${ds_llk_ratio||5}%`,
+    llkst==='fail'?'Poor coupling — consider interleaving or bifilar winding.':llkst==='warn'?'Slightly high — monitor snubber dissipation.':'Good coupling.'
+  );
+
+  // Al consistency
+  const al_dev = al > 0 ? Math.abs(al_from_lp - al) / al * 100 : 0;
+  const al_st = al_dev > 15 ? 'fail' : al_dev > 8 ? 'warn' : 'pass';
+  check('Al consistency (Lp = Al × Np²)', al_st,
+    `Al×Np²=${fmt(al_from_lp*np*np/1000,0)} µH; entered Lp=${lp} µH`,
+    `Al=${al} nH/N² (dev ${fmt(al_dev,1)}%)`,
+    al_st==='fail'?'Large inconsistency — check gap or winding turns entry.':al_st==='warn'?'Moderate inconsistency — verify Al and Np.':'Consistent.'
+  );
+
+  // Vds
+  if (ds_vds > 0) {
+    const ok = vds_max <= ds_vds;
+    check('FET Vds stress', ok?'pass':'fail',
+      `${fmt(vds_max,0)} V`,
+      `Rated ${ds_vds} V`,
+      ok?'Within FET rating.':'Exceeds rating — increase FET Vdss or reduce turns ratio!'
+    );
+  }
+
+  // Vdiode
+  if (ds_vd > 0) {
+    const ok = vsec_max <= ds_vd;
+    check('Secondary diode Vr stress', ok?'pass':'fail',
+      `${fmt(vsec_max,0)} V`,
+      `Rated ${ds_vd} V`,
+      ok?'Diode Vr within rating.':'Exceeds diode Vr rating — use higher rated rectifier!'
+    );
+  }
+
+  // Rdc
+  if (ds_rdc_p > 0) {
+    const ok = rdc_p <= ds_rdc_p;
+    check('Rdc primary vs limit', ok?'pass':'warn',
+      `${rdc_p} mΩ`,
+      `Max ${ds_rdc_p} mΩ`,
+      ok?'Within spec.':'Exceeds limit — use thicker wire or shorter winding path.'
+    );
+  }
+  if (ds_rdc_s > 0) {
+    const ok = rdc_s <= ds_rdc_s;
+    check('Rdc secondary vs limit', ok?'pass':'warn',
+      `${rdc_s} mΩ`,
+      `Max ${ds_rdc_s} mΩ`,
+      ok?'Within spec.':'High Rdc secondary — conduction loss & regulation impact.'
+    );
+  }
+
+  // Turns ratio
+  const ds_turns = gs('ds_turns');
+  if (ds_turns) {
+    const parts = ds_turns.split(':').map(Number);
+    if (parts.length === 2 && parts[1] > 0) {
+      const exp_n = parts[0] / parts[1];
+      const n_dev = Math.abs(n - exp_n) / exp_n * 100;
+      const ok = n_dev < 3;
+      check('Turns ratio Np:Ns', ok?'pass':'warn',
+        `Actual ${fmt(n,2)}, expected ${fmt(exp_n,2)}`,
+        `Dev ${fmt(n_dev,1)}%`,
+        ok?'Ratio matches spec.':'Ratio mismatch — check Np and Ns entries.'
+      );
+    }
+  }
+
+  // Window utilization
+  const aw = g('aw');
+  if (aw > 0) {
+    const wp_dia = g('wp_dia'), wp_str = g('wp_str') || 1;
+    const ws_dia = g('ws_dia'), ws_str = g('ws_str') || 1;
+    const a_p = Math.PI * (wp_dia/2)*(wp_dia/2) * wp_str * np;
+    const a_s = Math.PI * (ws_dia/2)*(ws_dia/2) * ws_str * ns;
+    const ku = (a_p + a_s) / aw * 100;
+    const ku_st = ku > 60 ? 'fail' : ku > 45 ? 'warn' : 'pass';
+    check('Window utilization Ku', ku_st,
+      `Ku = ${fmt(ku,1)}%`,
+      'Target <45%, max 60%',
+      ku_st==='fail'?'Windings will not physically fit!':ku_st==='warn'?'Tight winding — verify bobbin fits.':'Good.'
+    );
+  }
+
+  const pass = checks.filter(c=>c.status==='pass').length;
+  const warn = checks.filter(c=>c.status==='warn').length;
+  const fail = checks.filter(c=>c.status==='fail').length;
+
+  document.getElementById('r-pass').textContent = pass;
+  document.getElementById('r-warn').textContent = warn;
+  document.getElementById('r-fail').textContent = fail;
+
+  document.getElementById('checks-body').innerHTML = checks.map(c => `
+    <tr>
+      <td><span class="badge badge-${c.status}">${c.status.toUpperCase()}</span></td>
+      <td>
+        <div class="check-name">${c.label}</div>
+        <div class="check-detail">${c.measured} — limit: ${c.limit}</div>
+        <div class="check-advice">${c.advice}</div>
+      </td>
+      <td></td>
+    </tr>
+  `).join('');
+}
+
+// ── Sample inspection helpers ──
+function updateSampleSpecs() {
+  const ds_lp = g('ds_lp'), ds_lp_tol = g('ds_lp_tol');
+  const ds_llk = g('ds_llk'), ds_rdc_p = g('ds_rdc_p'), ds_rdc_s = g('ds_rdc_s');
+  const ds_ir = g('ds_ir'), ds_hipot = g('ds_hipot');
+  const ds_turns = gs('ds_turns');
+  setTxt('si-lp-spec', `Spec: ${ds_lp} µH ± ${ds_lp_tol}%`);
+  setTxt('si-llk-spec', `Spec: max ${ds_llk} µH`);
+  setTxt('si-rdcp-spec', `Spec: max ${ds_rdc_p} mΩ`);
+  setTxt('si-rdcs-spec', `Spec: max ${ds_rdc_s} mΩ`);
+  setTxt('si-tr-spec', `Spec: Np:Ns = ${ds_turns}`);
+  setTxt('si-hipot-spec', `Spec: ${ds_hipot} Vac`);
+  setTxt('si-ir-spec', `Spec: ≥ ${ds_ir} MΩ`);
+}
+function setTxt(id, v) { const el = document.getElementById(id); if(el) el.textContent = v; }
+
+function getSiLimits(type) {
+  return () => {
+    const ds_lp = g('ds_lp'), tol = g('ds_lp_tol') / 100;
+    return { min: ds_lp * (1-tol), max: ds_lp * (1+tol) };
+  };
+}
+
+function evalSample(inputId, lightId, limitsGetter) {
+  const val = g(inputId);
+  const light = document.getElementById(lightId);
+  if (!val) { light.className = 'pass-light'; return; }
+  const lim = limitsGetter();
+  const ds_lp = g('ds_lp'), tol = g('ds_lp_tol') / 100;
+  const min = ds_lp * (1 - tol), max = ds_lp * (1 + tol);
+  const dev = Math.abs(val - ds_lp) / ds_lp * 100;
+  if (val >= min && val <= max) {
+    light.className = 'pass-light pass';
+    setTxt('si-lp-msg', `✓ Within spec. Deviation ${dev.toFixed(1)}%`);
+  } else if (dev < tol * 100 * 1.5) {
+    light.className = 'pass-light warn';
+    setTxt('si-lp-msg', `⚠ Outside tolerance by ${(dev-tol*100).toFixed(1)}pp`);
+  } else {
+    light.className = 'pass-light fail';
+    setTxt('si-lp-msg', `✗ Out of spec — ${dev.toFixed(1)}% deviation`);
+  }
+}
+
+function evalSampleMax(inputId, lightId, msgId, limitFn) {
+  const val = g(inputId);
+  const light = document.getElementById(lightId);
+  if (!val) { light.className = 'pass-light'; return; }
+  const lim = limitFn();
+  if (val <= lim) {
+    light.className = 'pass-light pass';
+    setTxt(msgId, `✓ Within limit (${((val/lim)*100).toFixed(0)}% of max)`);
+  } else {
+    light.className = 'pass-light fail';
+    setTxt(msgId, `✗ Exceeds limit by ${(val-lim).toFixed(1)}`);
+  }
+}
+
+function evalSampleMin(inputId, lightId, msgId, limitFn) {
+  const val = g(inputId);
+  const light = document.getElementById(lightId);
+  if (!val) { light.className = 'pass-light'; return; }
+  const lim = limitFn();
+  if (val >= lim) {
+    light.className = 'pass-light pass';
+    setTxt(msgId, `✓ Above minimum (${(val/lim).toFixed(1)}× spec)`);
+  } else {
+    light.className = 'pass-light fail';
+    setTxt(msgId, `✗ Below minimum — ${val} MΩ vs spec ${lim} MΩ`);
+  }
+}
+
+function evalTurnsRatio() {
+  const vin = g('si_tr_vin'), vout_m = g('si_tr_vout');
+  const light = document.getElementById('si-tr-light');
+  const msg = document.getElementById('si-tr-msg');
+  if (!vin || !vout_m) { light.className = 'pass-light'; return; }
+  const meas_n = vin / vout_m;
+  const ds_turns = gs('ds_turns');
+  if (!ds_turns) { msg.textContent = `Measured ratio Np:Ns = ${meas_n.toFixed(2)}`; return; }
+  const parts = ds_turns.split(':').map(Number);
+  if (parts.length !== 2 || !parts[1]) return;
+  const exp_n = parts[0] / parts[1];
+  const dev = Math.abs(meas_n - exp_n) / exp_n * 100;
+  if (dev < 3) {
+    light.className = 'pass-light pass';
+    msg.textContent = `✓ Ratio ${meas_n.toFixed(2)} matches spec ${exp_n.toFixed(2)} (dev ${dev.toFixed(1)}%)`;
+  } else if (dev < 6) {
+    light.className = 'pass-light warn';
+    msg.textContent = `⚠ Ratio ${meas_n.toFixed(2)} vs spec ${exp_n.toFixed(2)} — ${dev.toFixed(1)}% deviation`;
+  } else {
+    light.className = 'pass-light fail';
+    msg.textContent = `✗ Ratio mismatch: ${meas_n.toFixed(2)} vs ${exp_n.toFixed(2)} — possible wrong turns!`;
+  }
+}
+
+function evalSelect(selectId, lightId, msgId, passVal, failVal) {
+  const val = document.getElementById(selectId).value;
+  const light = document.getElementById(lightId);
+  if (!val) { light.className = 'pass-light'; return; }
+  if (val === passVal) {
+    light.className = 'pass-light pass';
+    setTxt(msgId, '✓ Test passed');
+  } else {
+    light.className = 'pass-light fail';
+    setTxt(msgId, '✗ Test failed — do not use this sample');
+  }
+}
+
+function updateVisual() { /* visual selects self-manage via color */ }
+
+// ── Report generation ──
+function generateReport() {
+  const proj = gs('rpt_project') || 'Unnamed project';
+  const docno = gs('rpt_docno') || '—';
+  const rev = gs('rpt_rev') || 'A';
+  const date = gs('rpt_date') || new Date().toISOString().split('T')[0];
+  const lot = gs('si_lot') || '—';
+  const inspector = gs('si_inspector') || '—';
+  const verdict = gs('si_verdict') || 'Pending';
+  const notes = gs('si_notes') || '(none)';
+
+  const wpDia = g('wp_dia'), wpStr = parseInt(document.getElementById('wp_str')?.value)||1;
+  const wsDia = g('ws_dia'), wsStr = parseInt(document.getElementById('ws_str')?.value)||1;
+  const iout_a = g('iout');
+  const pout = g('vout') * iout_a;
+
+  const lines = [
+    `FLYBACK TRANSFORMER VERIFICATION REPORT`,
+    `${'='.repeat(52)}`,
+    `Project      : ${proj}`,
+    `Doc. number  : ${docno}  Rev. ${rev}`,
+    `Report date  : ${date}`,
+    ``,
+    `TRANSFORMER IDENTIFICATION`,
+    `${'─'.repeat(40)}`,
+    `Core         : ${gs('core_type')} ${gs('core_size')}`,
+    `Vendor       : ${gs('core_vendor') || '—'}   Material: ${gs('core_mat')}`,
+    `Ae / Le / Ve : ${g('ae')} mm² / ${g('le')} mm / ${g('ve')} mm³`,
+    `µi / Bsat    : ${g('mu_i')} / ${g('bsat')} mT   Gap: ${g('lg')} mm`,
+    `Np / Ns / Na : ${g('np')} / ${g('ns')} / ${g('naux')} turns  (n = ${(g('np')/(g('ns')||1)).toFixed(2)})`,
+    `Lp / Llk     : ${g('lp')} µH / ${g('llk')} µH  (Llk/Lp = ${(g('lp')>0?(g('llk')/g('lp')*100).toFixed(2):'—')}%)`,
+    `Wire primary : ${wpStr}× Ø${wpDia.toFixed(3)} mm  (${gs('wp_type')||'round'}, ${gs('wp_ins')||'grade2'})`,
+    `Wire sec.    : ${wsStr}× Ø${wsDia.toFixed(3)} mm  (${gs('ws_type')||'round'}, ${gs('ws_ins')||'grade2'})`,
+    ``,
+    `OPERATING CONDITIONS`,
+    `${'─'.repeat(40)}`,
+    `Vin          : ${g('vin_min')}–${g('vin_max')} Vac`,
+    `Vout / Iout  : ${g('vout')} V / ${iout_a.toFixed(4)} A = ${(iout_a*1000).toFixed(1)} mA  (${pout.toFixed(1)} W)`,
+    `fsw / Dmax   : ${g('fsw')} kHz / ${g('dmax')}   Mode: ${gs('mode')}`,
+    ``,
+    `DESIGN VERIFICATION`,
+    `${'─'.repeat(40)}`,
+    `Results      : ${document.getElementById('r-pass').textContent} PASS  /  ${document.getElementById('r-warn').textContent} WARN  /  ${document.getElementById('r-fail').textContent} FAIL`,
+    ``,
+    `SAMPLE INSPECTION`,
+    `${'─'.repeat(40)}`,
+    `Lot / sample : ${lot}`,
+    `Inspector    : ${inspector}`,
+    `Date recv.   : ${gs('si_date') || '—'}`,
+    `Qty checked  : ${g('si_qty')}`,
+    ``,
+    `Lp measured  : ${gs('si_lp_val') || '—'} µH  (spec ${g('ds_lp')} ± ${g('ds_lp_tol')}%)`,
+    `Llk measured : ${gs('si_llk_val') || '—'} µH  (spec max ${g('ds_llk')} µH)`,
+    `Rdc primary  : ${gs('si_rdcp_val') || '—'} mΩ  (spec max ${g('ds_rdc_p')} mΩ)`,
+    `Rdc sec      : ${gs('si_rdcs_val') || '—'} mΩ  (spec max ${g('ds_rdc_s')} mΩ)`,
+    `Hipot        : ${gs('si_hipot_res') || '—'}  (${gs('si_hipot_v')||'—'} Vac / ${gs('si_hipot_i')||'—'} mA)`,
+    `Insul. res.  : ${gs('si_ir_val') || '—'} MΩ  (spec ≥ ${g('ds_ir')} MΩ)`,
+    ``,
+    `Visual       : Core: ${gs('si_core_vis')||'—'} / Wire: ${gs('si_wire_vis')||'—'} / Pins: ${gs('si_pin_vis')||'—'}`,
+    ``,
+    `VERDICT      : ${verdict}`,
+    `Approved by  : ${gs('si_approver') || '—'}`,
+    `Sign-off     : ${gs('si_signoff_date') || '—'}`,
+    ``,
+    `NOTES`,
+    `${'─'.repeat(40)}`,
+    notes,
+    ``,
+    `${'='.repeat(52)}`,
+    `Generated by Flyback TX Verifier v1.1 — offline tool`,
+  ];
+  document.getElementById('report-summary').textContent = lines.join('\n');
+}
+
+// ── JSON export / import ──
+function collectAllFields() {
+  const ids = ['vin_min','vin_max','vin_nom','fsw','dmax','eta','vout','iout_raw','iout','vf','vripple','mode','rect_type','snubber',
+    'core_type','core_size','core_vendor','core_mat','ae','le','ve','aw','lg','mu_i','bsat','bmax_lim','core_temp',
+    'st_k','st_alpha','st_beta','core_rho','core_a','core_b','core_c','core_d','core_e','core_f','core_geo_notes',
+    'np','ns','naux','n3','lp','llk','al','rdc_p','rdc_s','meas_freq',
+    'wp_dia','wp_str','wp_type','wp_ins','ws_dia','ws_str','ws_type','ws_ins','wa_dia','wa_str','wa_type','wa_purpose',
+    'ins_class','safety_std','iso_class','creepage','clearance','tape_layers',
+    'ds_lp','ds_lp_tol','ds_lp_cond','ds_llk','ds_llk_ratio','ds_al','ds_turns','ds_rdc_p','ds_rdc_s','ds_vds','ds_vd','ds_hipot','ds_ir',
+    'si_lot','si_date','si_qty','si_inspector','si_lp_val','si_lp_freq','si_llk_val','si_rdcp_val','si_rdcs_val',
+    'si_tr_vin','si_tr_vout','si_hipot_v','si_hipot_i','si_hipot_res','si_ir_val',
+    'si_core_vis','si_wire_vis','si_pot_vis','si_pin_vis','si_mark_vis','si_dim_vis','si_notes','si_verdict','si_approver','si_signoff_date',
+    'rpt_project','rpt_docno','rpt_rev','rpt_date'];
+  const data = {};
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) data[id] = el.value;
+  });
+  return data;
+}
+
+function exportJSON() {
+  const data = collectAllFields();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tx_verification_${Date.now()}.json`;
+  a.click();
+}
+
+function loadJSON() {
+  document.getElementById('import-file').click();
+}
+
+function handleImport(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      Object.entries(data).forEach(([id, val]) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val;
+      });
+      alert('Data imported successfully.');
+    } catch(err) {
+      alert('Failed to parse JSON file.');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ── Iout unit toggle ──
+let ioutUnit = 'A';
+function setIoutUnit(unit) {
+  ioutUnit = unit;
+  const raw = parseFloat(document.getElementById('iout_raw').value) || 0;
+  document.getElementById('iout-unit-a').style.background  = unit==='A'  ? 'var(--accent)' : 'transparent';
+  document.getElementById('iout-unit-a').style.color       = unit==='A'  ? '#fff' : 'var(--text3)';
+  document.getElementById('iout-unit-ma').style.background = unit==='mA' ? 'var(--accent)' : 'transparent';
+  document.getElementById('iout-unit-ma').style.color      = unit==='mA' ? '#fff' : 'var(--text3)';
+  document.getElementById('iout-unit-label').textContent   = unit;
+  updateIoutDisplay();
+}
+function updateIoutDisplay() {
+  const raw = parseFloat(document.getElementById('iout_raw').value) || 0;
+  const inA = ioutUnit === 'A' ? raw : raw / 1000;
+  document.getElementById('iout').value = inA;
+  const hint = ioutUnit === 'A'
+    ? `= ${inA.toFixed(3)} A = ${(inA*1000).toFixed(1)} mA`
+    : `= ${(inA*1000).toFixed(1)} mA = ${inA.toFixed(4)} A`;
+  document.getElementById('iout-hint').textContent = hint;
+}
+
+// ── Core material presets ──
+const CORE_PRESETS = {
+  N87:   { mu_i:2200, bsat:400, bmax_lim:300, core_temp:100, st_k:0.0079, st_alpha:1.51, st_beta:2.53, core_rho:2,   note:'TDK N87 — general purpose MnZn, 25–500 kHz' },
+  N97:   { mu_i:2300, bsat:480, bmax_lim:340, core_temp:120, st_k:0.0060, st_alpha:1.55, st_beta:2.60, core_rho:2,   note:'TDK N97 — high Bsat grade, good for CCM flyback' },
+  PC95:  { mu_i:3300, bsat:530, bmax_lim:370, core_temp:130, st_k:0.0050, st_alpha:1.46, st_beta:2.50, core_rho:3,   note:'TDK PC95 — ultra-low loss, 100–500 kHz, high Bsat' },
+  '3C95':{ mu_i:3000, bsat:480, bmax_lim:340, core_temp:120, st_k:0.0058, st_alpha:1.50, st_beta:2.55, core_rho:2,   note:'Ferroxcube 3C95 — low loss at 100–500 kHz' },
+  DMR44: { mu_i:2000, bsat:390, bmax_lim:280, core_temp:100, st_k:0.0095, st_alpha:1.48, st_beta:2.45, core_rho:1.5, note:'DMEGC DMR44 — Chinese MnZn, N87 equivalent. Ae/Le may differ ±3%.' },
+  R10K:  { mu_i:10000,bsat:380, bmax_lim:260, core_temp:100, st_k:0.0110, st_alpha:1.40, st_beta:2.30, core_rho:1,   note:'Hengdian R10000 — high permeability, lower Bmax limit recommended. Verify Ae with calliper.' },
+  TP4A:  { mu_i:2500, bsat:420, bmax_lim:300, core_temp:100, st_k:0.0088, st_alpha:1.50, st_beta:2.50, core_rho:2,   note:'KMnetics TP4A — MnZn power grade, similar to N87. Confirm Al from vendor datasheet.' },
+};
+function loadPreset(key) {
+  const p = CORE_PRESETS[key];
+  if (!p) return;
+  document.getElementById('mu_i').value      = p.mu_i;
+  document.getElementById('bsat').value      = p.bsat;
+  document.getElementById('bmax_lim').value  = p.bmax_lim;
+  document.getElementById('core_temp').value = p.core_temp;
+  document.getElementById('st_k').value      = p.st_k;
+  document.getElementById('st_alpha').value  = p.st_alpha;
+  document.getElementById('st_beta').value   = p.st_beta;
+  document.getElementById('core_rho').value  = p.core_rho;
+  document.getElementById('material-note').textContent = '✓ Loaded: ' + p.note;
+  document.getElementById('core_mat').value  = key;
+}
+function clearMaterial() {
+  ['mu_i','bsat','bmax_lim','core_temp','st_k','st_alpha','st_beta','core_rho'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('material-note').textContent = 'Manual entry — fill all material parameters from your vendor datasheet.';
+}
+
+// ── AWG → mm ──
+function awgToMm(diaId, awgId, hintId) {
+  const val = document.getElementById(awgId).value;
+  if (!val) return;
+  document.getElementById(diaId).value = val;
+  const w = diaId[1] === 'p' ? 'p' : diaId[1] === 's' ? 's' : 'a';
+  calcWinding(w);
+}
+
+// ── Winding calc: area, Rdc/m, skin depth ──
+function calcWinding(w) {
+  const fsw_hz = (parseFloat(document.getElementById('fsw').value) || 65) * 1e3;
+  const pfx = w === 'p' ? 'wp' : w === 's' ? 'ws' : 'wa';
+  const dia  = parseFloat(document.getElementById(pfx + '_dia').value) || 0;
+  const str  = parseInt(document.getElementById(pfx + '_str').value)   || 1;
+  const r    = dia / 2;
+  const area_strand = Math.PI * r * r;           // mm²
+  const area_total  = area_strand * str;          // mm²
+  const rho_cu = 1.72e-8;                         // Ω·m at 25°C
+  const rdc_per_m = str > 0 ? (rho_cu / (area_total * 1e-6)) : 0; // Ω/m
+  const skin_depth = Math.sqrt(rho_cu / (Math.PI * fsw_hz * 4e-7 * Math.PI)) * 1000; // mm
+  const strand_ok = dia / 2 <= skin_depth;
+
+  if (pfx !== 'wa') {
+    document.getElementById(pfx + '_area').textContent  = area_total.toFixed(4) + ' mm²';
+    document.getElementById(pfx + '_rdcm').textContent  = (rdc_per_m * 1000).toFixed(2) + ' mΩ/m';
+    document.getElementById(pfx + '_skin').textContent  = skin_depth.toFixed(3) + ' mm';
+    const el = document.getElementById(pfx + '_skin_ok');
+    if (dia > 0) {
+      el.textContent = strand_ok ? '✓ r < δ (good)' : '⚠ r > δ (AC loss)';
+      el.style.color = strand_ok ? 'var(--pass)' : 'var(--warn)';
+    }
+  }
+  // Bundle hint
+  const bEl = document.getElementById(pfx + '_bundle_hint');
+  if (bEl) {
+    bEl.textContent = str === 1
+      ? `Single strand Ø ${dia.toFixed(3)} mm`
+      : `${str} strands × Ø${dia.toFixed(3)} mm = ${(area_total).toFixed(4)} mm² total`;
+  }
+  // dia display hint
+  const dEl = document.getElementById(pfx + '_dia_display');
+  if (dEl) dEl.textContent = `Strand Ø ${dia.toFixed(3)} mm — area ${area_strand.toFixed(5)} mm²`;
+}
+
+// Run winding calcs on page load
+calcWinding('p');
+calcWinding('s');
+calcWinding('a');
+
+// Set today's date defaults
+document.getElementById('si_date').value = new Date().toISOString().split('T')[0];
+document.getElementById('rpt_date').value = new Date().toISOString().split('T')[0];
+</script>
+</body>
+</html>
