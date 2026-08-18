@@ -2,7 +2,8 @@
 
 Open-source design and verification tools for power electronics 
 and hardware engineering. Each tool is a self-contained offline 
-HTML file — download and run in any browser, no installation needed.
+file — an HTML page you run in any browser, or a workbook you open 
+in Excel. No installation needed.
 
 ---
 
@@ -11,6 +12,7 @@ HTML file — download and run in any browser, no installation needed.
 | Tool | Description | Version | Status |
 |------|-------------|---------|--------|
 | [Flyback Transformer Verifier](./tools/flyback-transformer-verifier/) | Design verification and sample inspection for flyback/SMPS transformers | v1.1 | ✅ Active |
+| [Transformer Core & Bobbin Database](./tools/transformer-core-bobbin-database/) | Ferrite cores, coil formers, materials and AWG data with live sizing and winding-window calculators (Excel) | v1.0 | ✅ Active |
 
 ---
 
@@ -18,7 +20,7 @@ HTML file — download and run in any browser, no installation needed.
 
 - **Offline-first.** Every tool works with no internet connection 
   after the first load. No data leaves your machine.
-- **Single file.** Download one HTML file. No dependencies, 
+- **Single file.** Download one file. No dependencies, 
   no frameworks to install, no accounts required.
 - **Engineer-authored.** Built from real design work, 
   not academic examples.
